@@ -60,11 +60,16 @@ was **not fully green**. Its step results establish:
 | Vulnerability scanning | Failed in Trivy's shell download installer (exit 6), before scan results |
 | Effective Rust dependency scan | Skipped after the installer failure |
 
-The scanner action's download installer has been replaced with a version- and
-digest-pinned Trivy container built from `ci/Dockerfile`. The replacement and its
-regression test were exercised locally; **a complete remote rerun with the
-replacement scanner has not yet been verified**. The initial run is evidence of
-native ARM execution, not evidence that either remote security gate passed.
+The scanner action's download installer was replaced with a version- and
+digest-pinned Trivy container built from `ci/Dockerfile`. The subsequent
+[full CI run](https://github.com/ColeMundus/ha-voxl-chromium/actions/runs/41756376904)
+at commit `bf98163e5fa73e3dcdc15c63da2c053d129409bd` passed every job:
+
+- Python suite: 276 tests, plus Ruff lint/format and add-on metadata lint.
+- Native amd64 build, browser smoke, image/Rust vulnerability gates and cleanup,
+  executed on `mu-voxl-amd64` in the isolated VM.
+- Native aarch64 build, browser smoke and both security gates, executed on
+  GitHub's `ubuntu-24.04-arm` runner.
 
 ## On-demand runner verification
 
@@ -75,16 +80,17 @@ concurrency, and scoped workspace/temp cleanup. Cleanup/preparation shell comman
 are executed against isolated temporary fixtures, without real sudo. Workflow
 syntax/context availability is checked with actionlint.
 
-These local checks are not an end-to-end VM lifecycle result. The on-demand
-amd64 runner (12 vCPUs, 8 GiB RAM) uses a 20-second controller poll and a 60-second
-confirmed-idle shutdown; offline between jobs is expected. Only canonical trusted
-main jobs may use it, and ARM remains GitHub-hosted. See
-[runner/README.md](runner/README.md) for the operational and isolation boundaries.
+The operational test also verified the on-demand lifecycle: the controller
+started the previously powered-off 12-vCPU/8-GiB VM for the actual queued amd64
+job, GitHub assigned the job to `mu-voxl-amd64`, the job completed successfully,
+and the controller automatically powered off the VM after its 60-second idle
+grace. Final checks confirmed `ActiveState=inactive`, `MainPID=0`, GitHub runner
+`status=offline` and `busy=false`; the small polling controller remained active.
+The VM unit is not enabled for unconditional boot. See
+[runner/README.md](runner/README.md) for operational and isolation boundaries.
 
 ## Not yet verified
 
-- Full remote CI success after the scanner replacement and on-demand routing changes.
-- End-to-end guest wake, job completion and idle shutdown with the new routing.
 - Actual Home Assistant OS/Supervisor installation and HTTPS Ingress integration.
 - Live Supervisor backup/restore or an installed-version upgrade.
 - Release publication.

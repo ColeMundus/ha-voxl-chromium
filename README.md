@@ -46,9 +46,10 @@ restart, dynamic resolution, and shutdown on service failure. The
 [first GitHub CI run](https://github.com/ColeMundus/ha-voxl-chromium/actions/runs/41753324664)
 also passed native **amd64 and aarch64 image builds and real-container smoke
 tests**. That run failed later in the scanner's download installer, so it was
-**not a fully green CI run**; the replacement pinned scanner container has been
-locally tested but still needs a complete remote rerun. See [TESTING.md](TESTING.md)
-for the distinction between passed checks and remaining verification.
+**not a fully green CI run**. The subsequent [complete CI run](https://github.com/ColeMundus/ha-voxl-chromium/actions/runs/41756376904)
+passed on both architectures, including both security scans. Mu's on-demand VM
+automatically woke for its job and powered off after confirmed idle time.
+See [TESTING.md](TESTING.md) for passed checks and remaining verification.
 
 H.264 encoding is CPU-based. Large desktops, high frame rates, and busy pages can consume substantial CPU and memory on a Home Assistant host. Start with the defaults and reduce resolution/FPS if needed. Audio playback also depends on the viewing browser's autoplay policy.
 

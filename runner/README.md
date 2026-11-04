@@ -77,6 +77,14 @@ and lifecycle configuration are host provisioning, not workflow steps.
 - NAT/outbound access is not an air gap or a guarantee that LAN services are
   unreachable. Only reviewed main-branch code belongs here.
 
+Mu additionally applies [`vm-firewall.nft`](vm-firewall.nft) to the dedicated
+QEMU host UID. It rejects new private-LAN, Tailscale, loopback and link-local
+destinations, while allowing the host DNS stub and established maintenance SSH
+replies. Public GitHub access and rejection of the private Home Assistant address
+were exercised. These rules affect only that QEMU UID, not other host services.
+All external fork contributors require Actions approval on the repository; review
+workflow changes before approving, since labels are not authorization boundaries.
+
 ## Persistent workspace and smoke-test safety
 
 The VM disk is persistent, not a fresh machine for each job. CI removes the
@@ -113,3 +121,7 @@ validates GitHub expression/context syntax. These local checks do **not** prove
 that a guest successfully registered, woke, completed CI or shut down; use actual
 controller logs and GitHub job results for those operational claims. See
 [`TESTING.md`](../TESTING.md) for the initial remote CI results and limitations.
+
+The full run linked there subsequently verified actual automatic wake, successful
+amd64 CI execution and cleanup, and automatic idle poweroff. The final VM state
+was `inactive` with `MainPID=0`; GitHub showed the runner offline and not busy.
