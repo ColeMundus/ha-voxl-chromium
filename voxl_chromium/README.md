@@ -8,7 +8,7 @@ A persistent Chromium browser streamed with [voxl](https://github.com/tembo/voxl
 
 Requires Home Assistant Supervisor (normally Home Assistant OS); standalone Core and Container installations cannot install add-ons.
 
-Once published, add `https://github.com/ColeMundus/ha-voxl-chromium` under **Settings → Add-ons → Add-on Store → ⋮ → Repositories**. The repository is currently an intended publication target, not a claim of an existing online release. Install **voxl Chromium**, allow Supervisor to build it locally, start it, then select **Open Web UI**.
+Add `https://github.com/ColeMundus/ha-voxl-chromium` under **Settings → Add-ons → Add-on Store → ⋮ → Repositories**. Install **Voxl Chromium**, allow Supervisor to build it locally, start it, then select **Open Web UI**. The repository is public; this experimental version has not yet been tested on a live Supervisor installation.
 
 There are no project-published prebuilt images. Initial releases contain add-on source and the exact voxl source; a local build may be slow on small systems. The viewing browser needs **HTTPS and WebCodecs/H.264 decoding** (localhost is the secure-context exception).
 

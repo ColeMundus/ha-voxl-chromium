@@ -6,7 +6,7 @@
 
 Requires **Home Assistant Supervisor** (normally Home Assistant OS). Home Assistant Container and standalone Home Assistant Core cannot install Supervisor add-ons.
 
-The repository address below is the intended publication location; this project has **not yet been published** there. These installation steps apply after publication:
+Install this experimental add-on from its public repository:
 
 1. Open **Settings → Add-ons → Add-on Store → ⋮ → Repositories**.
 2. Add `https://github.com/ColeMundus/ha-voxl-chromium`.

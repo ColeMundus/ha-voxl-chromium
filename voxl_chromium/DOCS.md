@@ -2,7 +2,7 @@
 
 ## Requirements and startup
 
-Use a Home Assistant installation with **Supervisor**, normally Home Assistant OS. Add-on installation is not available on standalone Home Assistant Core or Container. After this repository is published, add `https://github.com/ColeMundus/ha-voxl-chromium` to the Add-on Store repositories, install **voxl Chromium**, and start it. This URL is the intended publication target, not a currently verified online release.
+Use a Home Assistant installation with **Supervisor**, normally Home Assistant OS. Add-on installation is not available on standalone Home Assistant Core or Container. Add `https://github.com/ColeMundus/ha-voxl-chromium` to the Add-on Store repositories, install **Voxl Chromium**, and start it. The repository is public; version 0.1.0 remains experimental and live Supervisor installation has not yet been verified.
 
 Supervisor builds the add-on locally from its Dockerfile; there is no project-published image to pull. Allow time and disk space for compilation. Open **Web UI** through Home Assistant Ingress rather than connecting to an internal port.
 

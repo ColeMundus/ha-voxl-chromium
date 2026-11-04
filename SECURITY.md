@@ -21,6 +21,6 @@ Do not enable host networking, publish internal ports, mount host paths, or rela
 
 Do **not** publish exploit details, session URLs, cookies, passwords, or unredacted logs in an issue.
 
-After the repository is published, prefer GitHub's **Security → Advisories → Report a vulnerability** for `ColeMundus/ha-voxl-chromium` **if private reporting is enabled**. This document does not imply that the repository or reporting feature is already available. If that private channel is unavailable, open only a minimal public request for a private contact channel, without vulnerability details or sensitive attachments. No private email address or response deadline is promised here.
+Prefer GitHub's **Security → Advisories → Report a vulnerability** for `ColeMundus/ha-voxl-chromium` when the private-reporting option is available. If that private channel is unavailable, open only a minimal public request for a private contact channel, without vulnerability details or sensitive attachments. No private email address or response deadline is promised here.
 
 A private report should include the affected commit/version, architecture, Home Assistant/Supervisor versions, prerequisites, impact, sanitized reproduction steps, and whether the issue requires relaxing the default boundary. Coordinate disclosure with the maintainer and affected upstream projects. Until a fix is available, stop the add-on if the risk applies to your deployment.
