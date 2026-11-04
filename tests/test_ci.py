@@ -8,6 +8,17 @@ import yaml
 ROOT = Path(__file__).parents[1]
 
 
+def test_smoke_installs_only_the_headless_browser_it_uses():
+    workflow = yaml.safe_load((ROOT / ".github/workflows/ci.yml").read_text())
+    steps = workflow["jobs"]["container"]["steps"]
+    install = next(
+        step for step in steps if step.get("name") == "Install browser for smoke tests"
+    )
+    assert install["run"] == (
+        "uv run playwright install --with-deps --only-shell chromium"
+    )
+
+
 def test_ci_uses_pinned_native_container_for_both_security_gates():
     workflow = yaml.safe_load((ROOT / ".github/workflows/ci.yml").read_text())
     steps = workflow["jobs"]["container"]["steps"]

@@ -2,13 +2,13 @@
 
 ## Requirements and startup
 
-Use a Home Assistant installation with **Supervisor**, normally Home Assistant OS. Add-on installation is not available on standalone Home Assistant Core or Container. Add `https://github.com/ColeMundus/ha-voxl-chromium` to the Add-on Store repositories, install **Voxl Chromium**, and start it. The repository is public; version 0.1.0 remains experimental and live Supervisor installation has not yet been verified.
+Use Home Assistant OS/Supervisor. Add `https://github.com/ColeMundus/ha-voxl-chromium` to the Add-on Store repositories, install **Voxl Chromium**, and start it. Standalone Home Assistant Core and Container cannot install add-ons.
 
 Supervisor builds the add-on locally from its Dockerfile; there is no project-published image to pull. Allow time and disk space for compilation. Open **Web UI** through Home Assistant Ingress rather than connecting to an internal port.
 
 Your **viewing browser** needs WebCodecs with H.264 decoding and a secure context: use Home Assistant over **HTTPS**. The localhost exception applies only when the viewing browser actually opens localhost; `http://192.168.x.x` and ordinary LAN HTTP hostnames do not qualify. A successful HTTP Ingress page load alone does not prove that video decoding is available.
 
-Version `0.1.0` is experimental. `amd64` and `aarch64` are intended targets, not evidence of tests on both; no live Supervisor/Home Assistant test is claimed.
+Version `0.1.0` is experimental. Native amd64/aarch64 CI passes, and the maintainer has confirmed working installation and streaming in Home Assistant. Backup/restore and installed-version upgrades remain unverified.
 
 ## Options
 
