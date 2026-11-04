@@ -1,0 +1,112 @@
+name: Review upstream update
+
+on:
+  schedule:
+    - cron: '23 8 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  UV_LOCKED: 'true'
+
+concurrency:
+  group: upstream-update
+  cancel-in-progress: false
+
+jobs:
+  resolve:
+    name: Resolve stable upstream release without write credentials
+    if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    outputs:
+      changed: ${{ steps.pin.outputs.changed }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
+        with:
+          python-version: '3.11'
+          enable-cache: false
+      - run: uv sync --locked
+      - name: Exercise offline updater regression tests
+        run: uv run pytest tests/test_update_upstream.py
+      - name: Resolve commit and hash the immutable archive
+        id: pin
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          uv run python scripts/update_upstream.py
+          if git diff --quiet -- voxl_chromium/upstream.json; then
+            printf 'changed=false\n' >> "$GITHUB_OUTPUT"
+          else
+            printf 'changed=true\n' >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: steps.pin.outputs.changed == 'true'
+        with:
+          name: reviewed-upstream-pin
+          path: voxl_chromium/upstream.json
+          if-no-files-found: error
+          retention-days: 1
+
+  propose:
+    name: Open review PR; explicitly dispatch CI
+    needs: resolve
+    if: needs.resolve.outputs.changed == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: write
+      actions: write
+    steps:
+      # Only default-branch code is checked out in this write-enabled job.
+      # Upstream content is never extracted or executed here.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: reviewed-upstream-pin
+          path: voxl_chromium
+      - name: Create or refresh a review-only PR
+        id: pr
+        uses: peter-evans/create-pull-request@22a9089034f40e5a961c8808d113e2c98fb63676 # v7
+        with:
+          token: ${{ github.token }}
+          branch: automation/update-voxl
+          delete-branch: false
+          add-paths: voxl_chromium/upstream.json
+          commit-message: 'chore: update immutable Voxl source pin'
+          title: 'chore: review latest stable Voxl upstream release'
+          body: |
+            Updates only `voxl_chromium/upstream.json`: latest non-prerelease
+            release, peeled immutable commit, and SHA-256 of the exact archive
+            consumed by the Dockerfile. No upstream code is executed by the updater.
+
+            **Maintainer review required; never auto-merge.** Check upstream changes,
+            licenses/dependencies, native amd64/aarch64 build and browser smoke results.
+            This workflow explicitly dispatches CI because PRs made with GITHUB_TOKEN
+            do not automatically trigger pull_request workflows.
+
+            The add-on version is intentionally unchanged. Before shipping an HA update,
+            bump `voxl_chromium/config.yaml` and update the changelog in a reviewed change.
+            Distribution remains source-build only; this PR does not publish images.
+          draft: false
+      - name: Run required native CI on the exact PR branch
+        if: steps.pr.outputs.pull-request-number != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: gh workflow run ci.yml --ref automation/update-voxl
+      - name: Verify the resulting PR
+        if: steps.pr.outputs.pull-request-number != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ steps.pr.outputs.pull-request-number }}
+        run: gh pr view "$PR_NUMBER" --json number,url,state,headRefName,autoMergeRequest

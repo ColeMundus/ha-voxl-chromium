@@ -1,0 +1,40 @@
+name: Voxl Chromium
+version: "0.1.0"
+slug: voxl_chromium
+description: Persistent Chromium browser streamed through voxl and Home Assistant Ingress
+url: https://github.com/ColeMundus/ha-voxl-chromium
+arch:
+  - amd64
+  - aarch64
+stage: experimental
+
+boot: manual
+init: false
+ingress: true
+
+ingress_stream: true
+panel_icon: mdi:web
+panel_title: Chromium
+
+options:
+  start_url: https://www.home-assistant.io
+  width: 1280
+  height: 720
+  fps: 30
+  bitrate_kbps: 8000
+  audio: true
+  resize: true
+  resize_scale: 1.0
+  timezone: Etc/UTC
+  language: en-US
+schema:
+  start_url: url
+  width: int(640,3840)
+  height: int(480,2160)
+  fps: int(1,60)
+  bitrate_kbps: int(500,50000)
+  audio: bool
+  resize: bool
+  resize_scale: float(0.5,2.0)
+  timezone: str
+  language: str

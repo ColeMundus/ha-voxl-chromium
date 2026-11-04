@@ -1,0 +1,9 @@
+*
+!Dockerfile
+!upstream.json
+!runtime.py
+!nginx.conf
+!LICENSE
+!MODIFICATIONS.md
+!patches/
+!patches/**

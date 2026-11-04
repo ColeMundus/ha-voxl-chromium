@@ -1,0 +1,106 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+  workflow_call:
+  schedule:
+    - cron: '47 8 * * 1'
+
+permissions:
+  contents: read
+
+env:
+  UV_LOCKED: 'true'
+
+jobs:
+  metadata:
+    name: Home Assistant add-on metadata lint
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: frenck/action-addon-linter@b9cfd1bc62ba60d2c4fc96317b5f7ada5923f4a7 # v2.21.1
+        with:
+          path: ./voxl_chromium
+          community: false
+
+  python:
+    name: Python tests and lint
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
+        with:
+          python-version: '3.11'
+          enable-cache: false
+      - run: uv sync --locked
+      - run: uv run pytest
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+
+  container:
+    name: Native build and smoke (${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-24.04
+          - arch: aarch64
+            runner: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
+        with:
+          python-version: '3.11'
+          enable-cache: false
+      - run: uv sync --locked
+      - name: Build ephemeral source image (never pushed or uploaded)
+        run: docker build -t ha-voxl-chromium:test voxl_chromium
+      - name: Install browser for smoke tests
+        run: uv run playwright install --with-deps chromium
+      - name: Exercise Chromium and ingress over the running container
+        run: uv run python tests/smoke.py --image ha-voxl-chromium:test
+      - name: Scan fixable high and critical container vulnerabilities
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: ha-voxl-chromium:test
+          scan-type: image
+          scanners: vuln
+          vuln-type: os,library
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: '1'
+          format: table
+          timeout: 15m
+          cache: false
+      - name: Collect the effective patched Rust dependency lockfile
+        run: |
+          mkdir -p artifacts/dependency-scan
+          id=$(docker create ha-voxl-chromium:test)
+          trap 'docker rm "$id"' EXIT
+          docker cp "$id:/usr/share/doc/voxl/Cargo.lock" artifacts/dependency-scan/Cargo.lock
+      - name: Scan the actual Rust dependencies, not just OS packages
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: artifacts/dependency-scan
+          scanners: vuln
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: '1'
+          format: table
+          timeout: 15m
+          cache: false

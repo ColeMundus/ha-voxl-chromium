@@ -1,0 +1,31 @@
+configuration:
+  start_url:
+    name: Start page
+    description: HTTP(S) page Chromium opens when the add-on starts. Do not include credentials.
+  width:
+    name: Desktop width
+    description: Initial and maximum desktop width in pixels (640–3840).
+  height:
+    name: Desktop height
+    description: Initial and maximum desktop height in pixels (480–2160).
+  fps:
+    name: Frame rate limit
+    description: Maximum streaming frame rate (1–60). Higher rates need more CPU.
+  bitrate_kbps:
+    name: Maximum bitrate
+    description: Adaptive video bitrate ceiling in kilobits per second (500–50000).
+  audio:
+    name: Browser audio
+    description: Stream desktop sound. A click in the viewer may be needed to allow playback.
+  resize:
+    name: Follow viewer size
+    description: Resize the desktop to fit the viewer, bounded by the configured desktop dimensions.
+  resize_scale:
+    name: Resolution scale
+    description: Desktop pixels per viewer CSS pixel (0.5–2.0).
+  timezone:
+    name: Time zone
+    description: IANA time zone used by Chromium, for example America/Chicago or Etc/UTC.
+  language:
+    name: Browser language
+    description: Language tag such as en-US or de-DE. Restart the add-on after changes.

@@ -1,0 +1,169 @@
+name: Source release
+
+# Source-build distribution only. Do not add a registry login, image push,
+# docker-save artifact, or HA image key until binary-source delivery is solved.
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+env:
+  UV_LOCKED: 'true'
+
+concurrency:
+  group: source-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    name: Validate version and source-only policy
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
+        with:
+          python-version: '3.11'
+          enable-cache: false
+      - run: uv sync --locked
+      - name: Require v{config.yaml version}; reject prebuilt image configuration
+        id: version
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          uv run python - <<'PY'
+          import os
+          import re
+          from pathlib import Path
+          import yaml
+
+          config = yaml.safe_load(Path('voxl_chromium/config.yaml').read_text())
+          version = str(config['version'])
+          if not re.fullmatch(r'(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)', version):
+              raise SystemExit('Add-on version must be stable x.y.z')
+          if os.environ['RELEASE_TAG'] != f'v{version}':
+              raise SystemExit('Tag does not match voxl_chromium/config.yaml version')
+          if 'image' in config:
+              raise SystemExit('Source-only release must not configure an image key')
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              output.write(f'version={version}\n')
+          PY
+
+  tests:
+    name: Required release tests
+    needs: validate
+    uses: ./.github/workflows/ci.yml
+    permissions:
+      contents: read
+
+  sources:
+    name: Package tracked project and checksum-verified upstream sources
+    needs: [validate, tests]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Archive the exact tagged project source
+        env:
+          RELEASE_VERSION: ${{ needs.validate.outputs.version }}
+        run: |
+          mkdir -p dist
+          git archive --format=tar.gz --prefix="ha-voxl-chromium-${RELEASE_VERSION}/" \
+            --output="dist/ha-voxl-chromium-${RELEASE_VERSION}-source.tar.gz" HEAD
+      - name: Fetch and verify the exact upstream archive; include dependency lock
+        env:
+          RELEASE_VERSION: ${{ needs.validate.outputs.version }}
+        run: |
+          python3 - <<'PY'
+          import hashlib
+          import json
+          import os
+          import re
+          import subprocess
+          import tarfile
+          from pathlib import Path
+
+          pin = json.loads(Path('voxl_chromium/upstream.json').read_text())
+          commit, expected = pin['commit'], pin['sha256']
+          if not re.fullmatch(r'[0-9a-f]{40}', commit):
+              raise SystemExit('Invalid upstream commit')
+          if not re.fullmatch(r'[0-9a-f]{64}', expected):
+              raise SystemExit('Invalid upstream archive SHA-256')
+          dist = Path('dist')
+          archive = dist / f'voxl-{commit}-source.tar.gz'
+          subprocess.run([
+              'curl', '--fail', '--location', '--proto', '=https', '--tlsv1.2',
+              '--retry', '3', '--max-time', '300', '--output', str(archive),
+              f'https://github.com/tembo/voxl/archive/{commit}.tar.gz',
+          ], check=True)
+          if hashlib.file_digest(archive.open('rb'), 'sha256').hexdigest() != expected:
+              raise SystemExit('Upstream archive checksum mismatch')
+          with tarfile.open(archive) as source:
+              member = source.getmember(f'voxl-{commit}/Cargo.lock')
+              if not member.isfile() or member.size > 2 * 1024 * 1024:
+                  raise SystemExit('Unexpected upstream Cargo.lock')
+              (dist / 'upstream-Cargo.lock').write_bytes(source.extractfile(member).read())
+          (dist / 'source-manifest.json').write_text(json.dumps({
+              'project_commit': os.environ['GITHUB_SHA'],
+              'project_version': os.environ['RELEASE_VERSION'],
+              'upstream': pin,
+              'patches': {
+                  str(path): hashlib.sha256(path.read_bytes()).hexdigest()
+                  for path in sorted(Path('voxl_chromium/patches').glob('*.patch'))
+              },
+              'distribution': 'source-build-only',
+          }, indent=2) + '\n')
+          (dist / 'SOURCE-NOTICE.txt').write_text(
+              'Source-build-only release. No container images or binaries are distributed.\n'
+              'Includes tracked project source, the exact upstream archive, and Cargo.lock.\n'
+              'The project source includes local patches; apply them before building.\n'
+              'upstream-Cargo.lock is the ORIGINAL lock; local patches define the effective lock.\n'
+              'Cargo.lock records dependency versions; dependency sources are not vendored.\n'
+              'This convenience bundle does not claim to be complete corresponding source\n'
+              'for Chromium, Debian, Rust dependencies, or any locally built binary image.\n'
+              'Review dependency licenses and source-delivery obligations before redistribution.\n'
+          )
+          entries = [
+              f'{hashlib.sha256(path.read_bytes()).hexdigest()}  {path.name}\n'
+              for path in sorted(dist.iterdir()) if path.is_file()
+          ]
+          (dist / 'SHA256SUMS').write_text(''.join(entries))
+          PY
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: source-release
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    name: Publish source assets only
+    needs: [validate, tests, sources]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: source-release
+          path: dist
+      - name: Publish verified source release (never images)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          (cd dist && sha256sum --check SHA256SUMS)
+          gh release create "$RELEASE_TAG" --verify-tag --title "$RELEASE_TAG" \
+            --notes-file dist/SOURCE-NOTICE.txt --draft=false --prerelease=false \
+            dist/*
+          gh release view "$RELEASE_TAG" --json tagName,isDraft,isPrerelease,assets

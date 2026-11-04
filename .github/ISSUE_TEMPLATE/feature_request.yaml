@@ -1,0 +1,39 @@
+name: Feature request
+description: Suggest an improvement with clear use cases and security boundaries.
+body:
+  - type: markdown
+    attributes:
+      value: >-
+        This is an experimental Supervisor add-on with source-only distribution.
+        Preserve the Ingress-only boundary unless you explicitly explain a different
+        threat model. Do not include credentials or private session details.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or use case
+      description: What are you trying to accomplish, and what is missing today?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+      description: Include relevant options, UI behavior, or a concrete example.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+  - type: textarea
+    id: impact
+    attributes:
+      label: Security, persistence, resource, and licensing impact
+      description: Note any new exposed ports, API access, host mounts, dependencies, source/binary distribution, or data migration. Write none known if appropriate.
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Target environment
+      description: Hardware/architecture and Home Assistant installation type, if relevant.

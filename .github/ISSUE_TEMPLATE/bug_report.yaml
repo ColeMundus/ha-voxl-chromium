@@ -1,0 +1,65 @@
+name: Bug report
+description: Report a reproducible add-on, local build, or Ingress problem.
+body:
+  - type: markdown
+    attributes:
+      value: >-
+        Experimental source-build-only add-on. Do not report vulnerabilities publicly;
+        follow SECURITY.md. Remove cookies, credentials, Ingress session paths,
+        tokens, profile contents, and private URLs from all fields and logs.
+  - type: input
+    id: version
+    attributes:
+      label: Add-on version and commit
+      placeholder: 0.1.0 / commit SHA
+    validations:
+      required: true
+  - type: input
+    id: platform
+    attributes:
+      label: Hardware and architecture
+      description: Include whether this is native amd64/aarch64 or an emulated build.
+    validations:
+      required: true
+  - type: input
+    id: home_assistant
+    attributes:
+      label: Home Assistant installation and versions
+      description: Include installation type, Supervisor, and OS versions, or state local Docker test only.
+    validations:
+      required: true
+  - type: input
+    id: viewer
+    attributes:
+      label: Viewing browser and connection
+      description: Browser/version, HTTPS or localhost, and any extra reverse proxy. Do not paste session URLs.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: Include sanitized options and whether the issue occurs through Open Web UI / Ingress or during a local build.
+    validations:
+      required: true
+  - type: textarea
+    id: expected_actual
+    attributes:
+      label: Expected and actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Sanitized logs and errors
+      description: Relevant build/add-on logs or browser-console errors only. Never attach a browser profile.
+      render: text
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I checked DOCS.md troubleshooting and removed secrets and private session details.
+          required: true
+        - label: This is not a private security report.
+          required: true
