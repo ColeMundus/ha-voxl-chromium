@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1
-FROM rust:1.91.1-bookworm AS builder
+FROM rust:1.99.0-bookworm AS builder
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates curl clang pkg-config libx264-dev libyuv-dev libopus-dev \
     libpulse-dev npm python3 && rm -rf /var/lib/apt/lists/*
