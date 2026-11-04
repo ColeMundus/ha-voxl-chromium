@@ -5,6 +5,9 @@ version, not a certification of future updates or a substitute for CI results.
 
 ## Executed locally on Linux amd64
 
+This table records the initial development baseline, before the scanner and
+runner regression tests were added; it is not the current test-suite total.
+
 | Check | Result |
 | --- | --- |
 | Python suite on Python 3.11 | 51 passed |
@@ -44,12 +47,47 @@ The vulnerability commands intentionally use `--severity HIGH,CRITICAL` and
 used at execution time, **not** absence of all vulnerabilities. CI runs both
 package and lockfile scans on subsequent builds.
 
+## Initial GitHub CI execution
+
+The public repository's [first CI run](https://github.com/ColeMundus/ha-voxl-chromium/actions/runs/41753324664)
+was **not fully green**. Its step results establish:
+
+| Check | Remote result |
+| --- | --- |
+| Metadata lint, Python tests and Ruff | Passed |
+| Native amd64 source image build and real-container smoke | Passed |
+| Native aarch64 source image build and real-container smoke | Passed |
+| Vulnerability scanning | Failed in Trivy's shell download installer (exit 6), before scan results |
+| Effective Rust dependency scan | Skipped after the installer failure |
+
+The scanner action's download installer has been replaced with a version- and
+digest-pinned Trivy container built from `ci/Dockerfile`. The replacement and its
+regression test were exercised locally; **a complete remote rerun with the
+replacement scanner has not yet been verified**. The initial run is evidence of
+native ARM execution, not evidence that either remote security gate passed.
+
+## On-demand runner verification
+
+The routing regressions parse the real YAML, check the exact trusted-main
+predicate and JSON runner labels across repository/ref/event combinations, and
+cover reusable release-tag calls, always-hosted ARM, non-cancelling job-level
+concurrency, and scoped workspace/temp cleanup. Cleanup/preparation shell commands
+are executed against isolated temporary fixtures, without real sudo. Workflow
+syntax/context availability is checked with actionlint.
+
+These local checks are not an end-to-end VM lifecycle result. The on-demand
+amd64 runner (12 vCPUs, 8 GiB RAM) uses a 20-second controller poll and a 60-second
+confirmed-idle shutdown; offline between jobs is expected. Only canonical trusted
+main jobs may use it, and ARM remains GitHub-hosted. See
+[runner/README.md](runner/README.md) for the operational and isolation boundaries.
+
 ## Not yet verified
 
-- Native aarch64 runtime execution (configured in GitHub CI).
+- Full remote CI success after the scanner replacement and on-demand routing changes.
+- End-to-end guest wake, job completion and idle shutdown with the new routing.
 - Actual Home Assistant OS/Supervisor installation and HTTPS Ingress integration.
 - Live Supervisor backup/restore or an installed-version upgrade.
-- Remote GitHub Actions execution and release publication.
+- Release publication.
 
 The fixture proxy emulates Ingress behavior; it is not Home Assistant itself.
 The repository is intentionally marked experimental. See

@@ -14,6 +14,7 @@ permissions:
 
 env:
   UV_LOCKED: 'true'
+  TRIVY_IMAGE: ha-voxl-scanner:ci
 
 jobs:
   metadata:
@@ -50,15 +51,41 @@ jobs:
     name: Native build and smoke (${{ matrix.arch }})
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 90
+    # One smoke subnet on the VM; hosted jobs have independent Docker daemons.
+    concurrency:
+      group: >-
+        ${{ contains(matrix.runner, 'mu-voxl-amd64') && 'voxl-mu-amd64-smoke' || format('voxl-hosted-{0}-{1}-{2}', github.run_id, github.run_attempt, matrix.arch) }}
+      cancel-in-progress: false
+    env:
+      VOXL_JOB_TEMP_NAME: voxl-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.arch }}
     strategy:
       fail-fast: false
       matrix:
         include:
           - arch: amd64
-            runner: ubuntu-24.04
+            # PRs, automation branches, forks and release tags stay GitHub-hosted.
+            runner: >-
+              ${{ fromJSON(github.repository == 'ColeMundus/ha-voxl-chromium' && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule') && '["self-hosted","linux","x64","mu-voxl-amd64"]' || '["ubuntu-24.04"]') }}
           - arch: aarch64
             runner: ubuntu-24.04-arm
     steps:
+      - name: Clean persistent workspace before checkout
+        if: contains(matrix.runner, 'self-hosted')
+        shell: bash
+        run: |
+          workspace=$(realpath -- "${GITHUB_WORKSPACE:?}")
+          runner_temp=$(realpath -- "${RUNNER_TEMP:?}")
+          job_temp=$(realpath -m -- "$runner_temp/${VOXL_JOB_TEMP_NAME:?}")
+          [[ "$workspace" != / && "$workspace" != "$HOME" ]]
+          [[ "$job_temp" == "$runner_temp"/voxl-* ]]
+          sudo -n find "$workspace" -mindepth 1 -maxdepth 1 -exec rm -rf -- {} +
+          sudo -n rm -rf -- "$job_temp"
+      - name: Prepare job temporary directory
+        shell: bash
+        run: |
+          job_temp="${RUNNER_TEMP:?}/${VOXL_JOB_TEMP_NAME:?}"
+          mkdir -p -- "$job_temp"
+          printf 'TMPDIR=%s\n' "$job_temp" >> "$GITHUB_ENV"
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
@@ -73,19 +100,16 @@ jobs:
         run: uv run playwright install --with-deps chromium
       - name: Exercise Chromium and ingress over the running container
         run: uv run python tests/smoke.py --image ha-voxl-chromium:test
+      - name: Prepare pinned vulnerability scanner
+        run: docker build --pull -t "$TRIVY_IMAGE" ci
       - name: Scan fixable high and critical container vulnerabilities
-        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
-        with:
-          image-ref: ha-voxl-chromium:test
-          scan-type: image
-          scanners: vuln
-          vuln-type: os,library
-          severity: HIGH,CRITICAL
-          ignore-unfixed: true
-          exit-code: '1'
-          format: table
-          timeout: 15m
-          cache: false
+        run: |
+          docker run --rm \
+            -v /var/run/docker.sock:/var/run/docker.sock:ro \
+            -v voxl-trivy-cache:/root/.cache/ \
+            "$TRIVY_IMAGE" image --scanners vuln \
+            --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 \
+            --timeout 15m ha-voxl-chromium:test
       - name: Collect the effective patched Rust dependency lockfile
         run: |
           mkdir -p artifacts/dependency-scan
@@ -93,14 +117,21 @@ jobs:
           trap 'docker rm "$id"' EXIT
           docker cp "$id:/usr/share/doc/voxl/Cargo.lock" artifacts/dependency-scan/Cargo.lock
       - name: Scan the actual Rust dependencies, not just OS packages
-        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
-        with:
-          scan-type: fs
-          scan-ref: artifacts/dependency-scan
-          scanners: vuln
-          severity: HIGH,CRITICAL
-          ignore-unfixed: true
-          exit-code: '1'
-          format: table
-          timeout: 15m
-          cache: false
+        run: |
+          docker run --rm \
+            -v "$PWD/artifacts/dependency-scan:/source:ro" \
+            -v voxl-trivy-cache:/root/.cache/ \
+            "$TRIVY_IMAGE" fs --scanners vuln \
+            --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 \
+            --timeout 15m /source
+      - name: Clean persistent workspace after job
+        if: always() && contains(matrix.runner, 'self-hosted')
+        shell: bash
+        run: |
+          workspace=$(realpath -- "${GITHUB_WORKSPACE:?}")
+          runner_temp=$(realpath -- "${RUNNER_TEMP:?}")
+          job_temp=$(realpath -m -- "$runner_temp/${VOXL_JOB_TEMP_NAME:?}")
+          [[ "$workspace" != / && "$workspace" != "$HOME" ]]
+          [[ "$job_temp" == "$runner_temp"/voxl-* ]]
+          sudo -n find "$workspace" -mindepth 1 -maxdepth 1 -exec rm -rf -- {} +
+          sudo -n rm -rf -- "$job_temp"

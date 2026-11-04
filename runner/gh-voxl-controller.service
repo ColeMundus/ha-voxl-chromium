@@ -1,0 +1,31 @@
+[Unit]
+Description=On-demand GitHub Actions VM controller for Voxl
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=cole
+Group=cole
+Environment=HOME=/home/cole
+Environment=DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
+Environment=XDG_RUNTIME_DIR=/run/user/1000
+WorkingDirectory=/var/lib/gh-voxl-controller
+StateDirectory=gh-voxl-controller
+StateDirectoryMode=0700
+ExecStart=/usr/bin/python3 /usr/local/libexec/gh-voxl-controller.py --state /var/lib/gh-voxl-controller/state.json --poll-seconds 20 --idle-seconds 60 --boot-seconds 600
+Restart=on-failure
+RestartSec=20
+TimeoutStopSec=20
+ProtectSystem=strict
+ProtectHome=read-only
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+ReadWritePaths=/var/lib/gh-voxl-controller
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

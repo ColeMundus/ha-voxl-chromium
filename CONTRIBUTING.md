@@ -25,10 +25,38 @@ smoke test at a time, on a development Docker daemon without a conflicting subne
 Its fixture proxy is test-only and is never copied into the add-on image.
 Screenshots and sanitized container logs are saved under ignored `artifacts/`.
 
-To enable automated update PRs after publication, enable **Settings → Actions →
+To enable automated update PRs, enable **Settings → Actions →
 General → Workflow permissions → Allow GitHub Actions to create and approve pull
 requests**. The automation creates PRs, never approves or auto-merges them. On
 forks, enable scheduled workflows explicitly if GitHub disables them by default.
+
+## CI runner routing
+
+The amd64 container build/smoke/scan job uses the isolated on-demand Mu VM only
+for `push`, `workflow_dispatch`, or `schedule` on `refs/heads/main` in
+`ColeMundus/ha-voxl-chromium`. All other amd64 runs use `ubuntu-24.04`, including
+PRs, automation branches, forks and reusable CI called from release tags. ARM
+always uses `ubuntu-24.04-arm`; Python and metadata jobs stay GitHub-hosted.
+Never route contributor PR code to Mu or override a trusted job's checkout with
+an untrusted ref. Changes to workflows/labels require security review: workflow
+routing is not a runner-level ACL against malicious workflow edits.
+
+The controller polls every 20 seconds and stops the 12-vCPU/8-GiB VM after 60
+seconds of confirmed idle time; GitHub showing the runner offline between jobs
+is expected. A job-level concurrency group serializes trusted Mu smoke tests
+without cancelling active builds, while hosted jobs remain independent. CI cleans
+only its checkout and job-specific temporary directory; do not add global Docker
+prunes or delete other jobs' temporary files. Browser dependency installation and
+passwordless sudo are confined to the guest, not the Mu host. See
+[runner/README.md](runner/README.md) for operations and isolation details.
+
+Run the routing regressions and validate workflow expressions when editing CI:
+
+```sh
+uv run pytest tests/test_runner_routing.py
+# With actionlint installed:
+actionlint .github/workflows/*.yml
+```
 
 ## Change requirements
 
@@ -51,6 +79,6 @@ Upstream voxl update PRs and Dependabot updates are proposals for human review, 
 3. Check `version` and changelog entries, option docs, security notices, and all distribution artifacts. The initial version is `0.1.0`, experimental.
 4. Assemble the add-on source **and exact pinned voxl source**, licenses, checksums, and local changes for release. Validate the packaged content and download checksums. A generated repository archive alone may omit the downloaded upstream source.
 5. Keep the release source-only: no add-on prebuilt-image `image` key, container push, registry release, or downloadable binary image artifact. Do not claim the source package is a complete corresponding-source bundle for locally produced images. Follow [NOTICE.md](NOTICE.md) before any future binary distribution.
-6. Publish only after explicit maintainer approval. Do not claim the planned repository URL is already online or installation is live-tested without evidence.
+6. Publish only after explicit maintainer approval. Link actual release and CI results; do not claim installation is live-tested without evidence.
 
 Report bugs with the issue template and sanitized logs. Use [SECURITY.md](SECURITY.md) instead of a public issue for vulnerabilities.

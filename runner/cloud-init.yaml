@@ -1,0 +1,43 @@
+#cloud-config
+hostname: gh-voxl-runner
+manage_etc_hosts: true
+ssh_pwauth: false
+disable_root: true
+groups:
+  - docker
+users:
+  - name: runner
+    groups: [sudo, docker]
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    lock_passwd: true
+    shell: /bin/bash
+    ssh_authorized_keys:
+      - SSH_PUBLIC_KEY
+package_update: true
+package_upgrade: true
+packages:
+  - ca-certificates
+  - curl
+  - docker.io
+  - git
+  - jq
+  - libicu74
+  - python3
+  - python3-venv
+  - rsync
+  - unzip
+write_files:
+  - path: /etc/docker/daemon.json
+    permissions: '0644'
+    content: |
+      {"log-driver":"json-file","log-opts":{"max-size":"20m","max-file":"3"}}
+  - path: /etc/ssh/sshd_config.d/99-runner.conf
+    permissions: '0644'
+    content: |
+      PasswordAuthentication no
+      PermitRootLogin no
+      AllowUsers runner
+runcmd:
+  - [systemctl, enable, --now, docker]
+  - [systemctl, restart, ssh]
+  - [touch, /var/lib/runner-bootstrap-ready]

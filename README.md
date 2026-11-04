@@ -42,8 +42,13 @@ Use only with trusted users and appropriately trusted browsing workloads. See [S
 The initial development build was exercised on **Linux amd64** with real H.264
 WebCodecs decoding, remote mouse/keyboard input, Opus audio transport, file transfer
 and traversal rejection, UID/token checks, browser site-data persistence across
-restart, dynamic resolution, and shutdown on service failure. Native ARM execution
-remains a CI target, not a locally verified result.
+restart, dynamic resolution, and shutdown on service failure. The
+[first GitHub CI run](https://github.com/ColeMundus/ha-voxl-chromium/actions/runs/41753324664)
+also passed native **amd64 and aarch64 image builds and real-container smoke
+tests**. That run failed later in the scanner's download installer, so it was
+**not a fully green CI run**; the replacement pinned scanner container has been
+locally tested but still needs a complete remote rerun. See [TESTING.md](TESTING.md)
+for the distinction between passed checks and remaining verification.
 
 H.264 encoding is CPU-based. Large desktops, high frame rates, and busy pages can consume substantial CPU and memory on a Home Assistant host. Start with the defaults and reduce resolution/FPS if needed. Audio playback also depends on the viewing browser's autoplay policy.
 
@@ -64,6 +69,18 @@ Builds apply a documented [security dependency patch](voxl_chromium/MODIFICATION
 to upstream voxl and run its library tests. CI scans Debian packages and the
 effective patched Rust lockfile separately; an OS-only scan cannot inspect all
 statically linked Rust dependencies. Review the local patch when updating voxl.
+
+## CI runners
+
+Only the canonical repository's trusted `main` pushes, manual runs and schedules
+route the amd64 container job to an on-demand Mu VM (12 vCPUs, 8 GiB RAM). PRs,
+forks, automation branches and release tags stay on GitHub-hosted Ubuntu 24.04;
+ARM always uses native `ubuntu-24.04-arm`. The controller polls every 20 seconds
+and powers off the VM after 60 seconds of confirmed idle time, so an offline
+runner between jobs is normal. There are no host home-directory/Docker mounts
+or Internet-facing forwarded ports; maintenance SSH is loopback-only on 2227.
+See [runner operations and trust boundaries](runner/README.md) for lifecycle,
+workspace cleanup, serialization and public-workflow security caveats.
 
 ## License
 
