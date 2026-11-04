@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.1
+
+- Add Chromium artwork to the add-on listing and details page, with its license.
+- Use the browser icon for the Home Assistant sidebar entry.
+- Fix documentation links that did not work inside Home Assistant.
+- Keep browser settings, persistent data and streaming behavior unchanged.
+
 ## 0.1.0 — Experimental initial source release
 
 - Patch upstream's ZIP dependency to 9.0.5, preserve the effective lockfile, and
