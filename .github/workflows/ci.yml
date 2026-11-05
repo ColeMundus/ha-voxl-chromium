@@ -51,41 +51,15 @@ jobs:
     name: Native build and smoke (${{ matrix.arch }})
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 90
-    # One smoke subnet on the VM; hosted jobs have independent Docker daemons.
-    concurrency:
-      group: >-
-        ${{ contains(matrix.runner, 'mu-voxl-amd64') && 'voxl-mu-amd64-smoke' || format('voxl-hosted-{0}-{1}-{2}', github.run_id, github.run_attempt, matrix.arch) }}
-      cancel-in-progress: false
-    env:
-      VOXL_JOB_TEMP_NAME: voxl-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.arch }}
     strategy:
       fail-fast: false
       matrix:
         include:
           - arch: amd64
-            # PRs, automation branches, forks and release tags stay GitHub-hosted.
-            runner: >-
-              ${{ fromJSON(github.repository == 'ColeMundus/ha-voxl-chromium' && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule') && '["self-hosted","linux","x64","mu-voxl-amd64"]' || '["ubuntu-24.04"]') }}
+            runner: ubuntu-24.04
           - arch: aarch64
             runner: ubuntu-24.04-arm
     steps:
-      - name: Clean persistent workspace before checkout
-        if: contains(matrix.runner, 'self-hosted')
-        shell: bash
-        run: |
-          workspace=$(realpath -- "${GITHUB_WORKSPACE:?}")
-          runner_temp=$(realpath -- "${RUNNER_TEMP:?}")
-          job_temp=$(realpath -m -- "$runner_temp/${VOXL_JOB_TEMP_NAME:?}")
-          [[ "$workspace" != / && "$workspace" != "$HOME" ]]
-          [[ "$job_temp" == "$runner_temp"/voxl-* ]]
-          sudo -n find "$workspace" -mindepth 1 -maxdepth 1 -exec rm -rf -- {} +
-          sudo -n rm -rf -- "$job_temp"
-      - name: Prepare job temporary directory
-        shell: bash
-        run: |
-          job_temp="${RUNNER_TEMP:?}/${VOXL_JOB_TEMP_NAME:?}"
-          mkdir -p -- "$job_temp"
-          printf 'TMPDIR=%s\n' "$job_temp" >> "$GITHUB_ENV"
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
@@ -124,14 +98,3 @@ jobs:
             "$TRIVY_IMAGE" fs --scanners vuln \
             --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 \
             --timeout 15m /source
-      - name: Clean persistent workspace after job
-        if: always() && contains(matrix.runner, 'self-hosted')
-        shell: bash
-        run: |
-          workspace=$(realpath -- "${GITHUB_WORKSPACE:?}")
-          runner_temp=$(realpath -- "${RUNNER_TEMP:?}")
-          job_temp=$(realpath -m -- "$runner_temp/${VOXL_JOB_TEMP_NAME:?}")
-          [[ "$workspace" != / && "$workspace" != "$HOME" ]]
-          [[ "$job_temp" == "$runner_temp"/voxl-* ]]
-          sudo -n find "$workspace" -mindepth 1 -maxdepth 1 -exec rm -rf -- {} +
-          sudo -n rm -rf -- "$job_temp"

@@ -11,5 +11,7 @@ The browser profile and downloads persist across restarts. All viewers share the
 same browser sessions. **Chromium's sandbox is disabled**; use trusted users and
 browsing workloads. No additional ports or Home Assistant API permissions are needed.
 
-See [configuration and troubleshooting](DOCS.md), the [security policy](../SECURITY.md)
-and [licensing notices](../NOTICE.md). Version 0.1.0 remains experimental.
+See [configuration and troubleshooting](https://github.com/ColeMundus/ha-voxl-chromium/blob/main/voxl_chromium/DOCS.md),
+the [security policy](https://github.com/ColeMundus/ha-voxl-chromium/blob/main/SECURITY.md)
+and [licensing notices](https://github.com/ColeMundus/ha-voxl-chromium/blob/main/NOTICE.md).
+This add-on is experimental.
