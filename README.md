@@ -4,8 +4,8 @@
 
 [![CI](https://github.com/ColeMundus/ha-voxl-chromium/actions/workflows/ci.yml/badge.svg)](https://github.com/ColeMundus/ha-voxl-chromium/actions/workflows/ci.yml)
 [![HACS custom repository](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=ColeMundus&repository=ha-voxl-chromium&category=integration)
-[![Home Assistant 2026.10.0 or newer](https://img.shields.io/badge/Home_Assistant-2026.10.0%2B-18BCF2.svg)](AUTOMATION.md)
-[![amd64 and aarch64](https://img.shields.io/badge/arch-amd64%20%7C%20aarch64-informational.svg)](voxl_chromium/config.yaml)
+[![Home Assistant 2026.10.0 or newer](https://img.shields.io/badge/Home_Assistant-2026.10.0_or_newer-18BCF2.svg)](AUTOMATION.md)
+[![amd64 and aarch64](https://img.shields.io/badge/arch-amd64_and_aarch64-informational.svg)](voxl_chromium/config.yaml)
 [![GPL-2.0-or-later](https://img.shields.io/badge/license-GPL--2.0--or--later-blue.svg)](LICENSE)
 
 A persistent Chromium browser inside Home Assistant, streamed through
