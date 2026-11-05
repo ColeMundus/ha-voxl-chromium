@@ -1,2 +1,0 @@
-# Only the fixed VM lifecycle unit is permitted by this runner-specific rule.
-cole ALL=(root) NOPASSWD: /usr/bin/systemctl start gh-voxl-vm.service, /usr/bin/systemctl stop gh-voxl-vm.service

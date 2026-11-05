@@ -1,12 +1,19 @@
 # Changelog
 
+## 0.1.1
+
+- Add Chromium artwork to the add-on listing and details page, with its license.
+- Use the browser icon for the Home Assistant sidebar entry.
+- Fix documentation links that did not work inside Home Assistant.
+- Keep browser settings, persistent data and streaming behavior unchanged.
+
 ## 0.1.0 — Experimental initial source release
 
 - Patch upstream's ZIP dependency to 9.0.5, preserve the effective lockfile, and
   scan Rust dependencies separately from operating-system packages.
 
 - Introduces a Supervisor add-on for a persistent Chromium desktop streamed by voxl through Ingress.
-- Intended targets: `amd64` and `aarch64`. Local builds/tests must be reported per architecture; no live Home Assistant testing is claimed.
+- Supports `amd64` and `aarch64`, with native image-build and browser-smoke CI.
 - Persists the profile in `/data/profile` and downloads in `/data/Downloads`.
 - Defaults to no published ports, a Supervisor-only nginx allowlist, and a loopback-only voxl service with its own authentication disabled.
 - Runs Chromium as UID 1000 without the Chromium sandbox due to Docker restrictions; this is a material security limitation, not equivalent protection.

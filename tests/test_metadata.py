@@ -2,7 +2,10 @@
 
 import json
 import re
+import struct
+import tomllib
 from pathlib import Path
+from urllib.parse import urlsplit
 
 import yaml
 from runtime import DEFAULTS, validate_options
@@ -60,3 +63,39 @@ def test_option_translations_cover_all_settings():
     assert translations["configuration"].keys() == DEFAULTS.keys()
     for value in translations["configuration"].values():
         assert value["name"] and value["description"]
+
+
+def test_home_assistant_docs_use_absolute_https_links():
+    for name in ("README.md", "DOCS.md", "CHANGELOG.md"):
+        for target in re.findall(r"\]\(([^)]+)\)", (ADDON / name).read_text()):
+            url = urlsplit(target)
+            assert url.scheme == "https" and url.netloc, (name, target)
+
+
+def test_sidebar_uses_the_browser_icon():
+    config = yaml.safe_load((ADDON / "config.yaml").read_text())
+    assert config["panel_icon"] == "mdi:google-chrome"
+
+
+def test_listing_images_and_their_license_are_present():
+    for name, size in (("icon.png", 128), ("logo.png", 256)):
+        image = (ADDON / name).read_bytes()
+        assert image[:8] == b"\x89PNG\r\n\x1a\n"
+        assert image[12:16] == b"IHDR"
+        assert struct.unpack(">II", image[16:24]) == (size, size)
+        assert b"IEND" in image[-12:]
+    license_text = (ADDON / "CHROMIUM-LICENSE").read_text()
+    assert "The Chromium Authors" in license_text
+    assert "Redistribution and use" in license_text
+    assert "icon.png" in (ROOT / "NOTICE.md").read_text()
+
+
+def test_current_version_has_matching_package_metadata_and_changelog():
+    config = yaml.safe_load((ADDON / "config.yaml").read_text())
+    project = tomllib.loads((ROOT / "pyproject.toml").read_text())
+    assert project["project"]["version"] == config["version"]
+    assert re.search(
+        rf"^## {re.escape(config['version'])}(?:\s|$)",
+        (ADDON / "CHANGELOG.md").read_text(),
+        re.MULTILINE,
+    )
