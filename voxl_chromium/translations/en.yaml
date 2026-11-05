@@ -28,7 +28,10 @@ configuration:
     description: IANA time zone used by Chromium, for example America/Chicago or Etc/UTC.
   automation_token:
     name: Automation access token
-    description: Leave empty to disable native automation. Otherwise use a unique random token of at least 32 characters and enter it in the companion integration. Restart after changes; never share the token or publish the internal control port.
+    description: Optional manual token of at least 32 characters. A nonempty token enables automation even when the toggle is off, for compatibility. Leave empty with automation enabled to generate a stable private token. Restart after changes; never share tokens or publish the internal control port.
+  automation_enabled:
+    name: Enable native automation and discovery
+    description: Enable the internal authenticated API and offer Supervisor discovery for the separately installed companion integration. An empty manual token generates a stable private token in add-on data. Off by default; restart after changes. Browser recovery from the desktop menu works without automation.
   language:
     name: Browser language
     description: Language tag such as en-US or de-DE. Restart the add-on after changes.

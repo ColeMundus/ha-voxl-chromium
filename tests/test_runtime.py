@@ -15,6 +15,112 @@ def runtime():
     return module
 
 
+def test_opt_in_token_is_stable_private_and_never_follows_links(tmp_path):
+    import stat
+
+    mod = runtime()
+    disabled = mod.validate_options({})
+    assert disabled["automation_enabled"] is False
+    assert mod.resolve_automation_token(disabled, tmp_path) == ""
+    assert not (tmp_path / "automation-token").exists()
+    options = mod.validate_options({"automation_enabled": True})
+    first = mod.resolve_automation_token(options, tmp_path)
+    assert len(first) >= 43
+    assert mod.resolve_automation_token(options, tmp_path) == first
+    assert stat.S_IMODE((tmp_path / "automation-token").stat().st_mode) == 0o600
+    other = tmp_path / "other"
+    other.mkdir()
+    assert mod.resolve_automation_token(options, other) != first
+    manual = mod.validate_options({"automation_token": "m" * 32})
+    assert mod.resolve_automation_token(manual, tmp_path) == "m" * 32
+    (tmp_path / "automation-token").unlink()
+    (tmp_path / "automation-token").symlink_to(other / "automation-token")
+    with pytest.raises((ValueError, OSError)):
+        mod.resolve_automation_token(options, tmp_path)
+    with pytest.raises(ValueError):
+        mod.validate_options({"automation_enabled": "true"})
+
+
+def test_monitor_does_not_treat_closed_browser_as_critical(monkeypatch):
+    from types import SimpleNamespace
+
+    mod = runtime()
+    closed = SimpleNamespace(poll=lambda: 0, returncode=0)
+    alive = SimpleNamespace(poll=lambda: None)
+    stopped = []
+    monkeypatch.setattr(mod, "stop_all", lambda processes: stopped.append(processes))
+
+    def interrupt(_):
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(mod.time, "sleep", interrupt)
+    with pytest.raises(KeyboardInterrupt):
+        mod.monitor({"chromium": closed, "voxl": alive})
+    assert stopped
+
+
+def test_browser_manager_reaps_and_never_relaunches_after_stop(tmp_path):
+    import sys
+    import threading
+
+    mod = runtime()
+    manager = mod.BrowserManager()
+    saved = tmp_path / "profile"
+    try:
+        first = manager.launch([sys.executable, "-c", "pass"])
+        assert first.wait(timeout=3) == 0
+        live = manager.launch(
+            [
+                sys.executable,
+                "-c",
+                "import pathlib,sys,time; "
+                "pathlib.Path(sys.argv[1]).write_text('persistent'); time.sleep(60)",
+                str(saved),
+            ]
+        )
+        assert len(manager.processes) == 1
+        assert list(manager.processes.values()) == [live]
+    finally:
+        manager.stop()
+    assert live.poll() is not None
+    with pytest.raises(RuntimeError, match="stopping"):
+        manager.launch([sys.executable, "-c", "pass"])
+    assert all(child.poll() is not None for child in manager.processes.values())
+    # A stopped event returns without restarting or stopping unrelated services.
+    stopped = threading.Event()
+    stopped.set()
+    assert mod.monitor({}, stopped=stopped, cleanup=False) == 0
+    with pytest.raises(SystemExit):
+        mod.wait_ready(lambda: False, {}, stopped=stopped)
+
+
+def test_discovery_helper_never_inherits_credentials_and_is_optional(monkeypatch):
+    from types import SimpleNamespace
+
+    mod = runtime()
+    monkeypatch.setenv("SUPERVISOR_TOKEN", "supervisor-private")
+    monkeypatch.setenv("HASSIO_TOKEN", "legacy-private")
+    monkeypatch.setenv("AUTOMATION_TOKEN", "automation-private")
+    calls = []
+
+    def popen(argv, **kwargs):
+        calls.append((argv, kwargs))
+        assert "private" not in repr((argv, kwargs))
+        assert kwargs["env"] == {"PATH": "/usr/local/bin:/usr/bin:/bin"}
+        assert kwargs["stdin"] == mod.subprocess.PIPE
+        return SimpleNamespace(pid=42)
+
+    monkeypatch.setattr(mod.subprocess, "Popen", popen)
+    assert mod.start_discovery().pid == 42
+    assert calls
+
+    def fail(*args, **kwargs):
+        raise OSError("not available")
+
+    monkeypatch.setattr(mod.subprocess, "Popen", fail)
+    assert mod.start_discovery() is None
+
+
 def test_default_options_produce_private_persistent_browser():
     mod = runtime()
     options = mod.validate_options({})
@@ -61,10 +167,8 @@ def test_arguments_are_not_shell_interpreted():
     assert mod.commands(options)["chromium"][-1] == url
 
 
-def test_automation_token_default_validation_and_private_launch(monkeypatch, tmp_path):
+def test_automation_token_default_validation_and_browser_exclusion():
     import os
-    import stat
-    from types import SimpleNamespace
 
     mod = runtime()
     assert mod.validate_options({})["automation_token"] == ""
@@ -75,22 +179,6 @@ def test_automation_token_default_validation_and_private_launch(monkeypatch, tmp
     options = mod.validate_options({"automation_token": token})
     assert options["automation_token"] == token
     assert token not in repr(mod.commands(options))
-    monkeypatch.setenv("XDG_RUNTIME_DIR", str(tmp_path))
-
-    def popen(argv, **kwargs):
-        assert token not in repr(argv) and "env" not in kwargs
-        path = Path(argv[argv.index("--token-file") + 1])
-        assert path.parent == tmp_path
-        assert stat.S_IMODE(path.stat().st_mode) == 0o600
-        assert path.read_text() == token
-        assert kwargs == {"start_new_session": True}
-        path.unlink()
-        return SimpleNamespace(pid=42)
-
-    monkeypatch.setattr(mod.subprocess, "Popen", popen)
-    assert mod.start_control(options).pid == 42
-    assert not list(tmp_path.iterdir())
-    assert mod.start_control(mod.validate_options({})) is None
     assert os.environ.get("automation_token") is None
 
 

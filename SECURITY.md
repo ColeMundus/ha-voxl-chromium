@@ -9,7 +9,8 @@ Anyone who can access the browser through Ingress can interact with its shared p
 ## Intended boundaries
 
 - Supervisor Ingress handles user-facing access; nginx accepts connections only from `172.30.32.2`. No ports are published by default.
-- The automation API is disabled by default. Setting `automation_token` enables
+- The automation API is disabled by default. Enabling `automation_enabled` or
+  setting a nonempty explicit `automation_token` enables
   a separate bearer-authenticated service on private container port 8100, with no
   host port published. Treat the token as authority to control the shared browser
   and capture whatever is displayed, including signed-in pages and sensitive data.
@@ -23,7 +24,7 @@ Anyone who can access the browser through Ingress can interact with its shared p
   access can use these actions; the token is not a per-user browser permission.
 - voxl binds to loopback and has its own authentication **disabled**. Exposing it directly or removing the nginx source allowlist bypasses the intended boundary. A forwarded address header is not a replacement for checking the connecting peer.
 - Chromium runs as UID 1000 **with its sandbox disabled because of Docker restrictions**. This removes a significant browser security layer. Non-root execution and container isolation do not replace it. A compromised page/browser may access the browser profile and downloads, attack services reachable over the network, or exploit further vulnerabilities to escape the container.
-- The add-on requests no Home Assistant/Supervisor API access or runtime API token, and no host-directory mounts. This does not prevent a user from signing into Home Assistant or other services in Chromium, storing secrets in the profile, or exposing them to someone controlling that browser.
+- The add-on requests no broad Home Assistant/Supervisor API permission and no host-directory mounts. Optional pairing uses Supervisor's basic self-info/discovery API, with the runtime credential excluded from Chromium's environment. Generated automation credentials are private persistent add-on data and included in its backups. This does not prevent a user from signing into Home Assistant or other services in Chromium, storing secrets in the profile, or exposing them to someone controlling that browser.
 - `/data/profile`, `/data/Downloads`, and backups may contain sensitive data. Chromium uses `--password-store=basic`, not an OS keyring-backed secret store; do not assume saved credentials are securely encrypted at rest. Protect access and encrypt backups where appropriate. Do not attach profile archives to issues.
 - Use HTTPS for Home Assistant access. WebCodecs requires a secure context (except the browser's localhost exception); a LAN HTTP connection is not an equivalent secure deployment.
 

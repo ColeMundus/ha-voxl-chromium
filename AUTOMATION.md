@@ -4,31 +4,53 @@ The optional companion integration adds native Home Assistant actions for the
 Chromium desktop. It is separate from the add-on: installing an add-on does not
 install code into Home Assistant Core.
 
-## Setup
+## Setup with HACS
 
-1. Use **Home Assistant 2026.10.4 or newer**, and update the **Voxl Chromium**
-   add-on to version **0.2.0** or newer.
-2. Generate a unique random token (for example with a password manager). Set
-   `automation_token` in the add-on configuration to at least 32 characters, save,
-   and restart the add-on. Leaving it empty disables the control API entirely.
-3. Copy this repository's `custom_components/voxl_chromium` directory to
-   `/config/custom_components/voxl_chromium` in Home Assistant, then restart
-   Home Assistant. This is a custom integration, not an official Core integration.
-4. In **Settings → Devices & services → Add integration**, search for
-   **Voxl Chromium**. Enter the add-on's internal hostname, port **8100**, and
-   the same token. Use the hostname shown in the add-on's information page,
-   not the Home Assistant hostname, a LAN IP, or an Ingress URL.
+Requires **Home Assistant 2026.10.0 or newer** and the **Voxl Chromium add-on
+0.3.0 or newer** for discovery-based setup.
+
+1. [Open this repository in HACS](https://my.home-assistant.io/redirect/hacs_repository/?owner=ColeMundus&repository=ha-voxl-chromium&category=integration),
+   add it as an **Integration**, and download **Voxl Chromium**. Restart Home
+   Assistant when HACS asks.
+2. In the add-on's **Configuration** tab, enable **Home Assistant actions**
+   (`automation_enabled`), save, and restart the add-on.
+3. Open **Settings → Devices & services** and confirm the discovered **Voxl
+   Chromium** integration. The add-on supplies the hostname, port and a generated
+   credential over Supervisor discovery; there is no token to copy.
+
+If the HACS link does not open, go to **HACS → ⋮ → Custom repositories**, add
+`https://github.com/ColeMundus/ha-voxl-chromium` with type **Integration**, then
+open and download it. The add-on and integration use the **same repository**;
+there is no second GitHub repo to register.
+
+An add-on runs in its own container. A custom integration runs inside Home
+Assistant Core. Installing an add-on cannot install a custom integration into
+Core, so HACS installation is a separate one-time step. Discovery makes pairing
+simple after the integration code is installed. No configuration-folder mount
+or extra Supervisor/Core API permission is needed.
 
 The control connection stays inside Supervisor's private container network.
-There is no host port to enable, no router forwarding, no Supervisor API grant,
-and no dependency on a person's Ingress session. Do not expose port 8100 to the
-LAN or internet. This integration expects Core and the add-on to be able to reach
-one another on that private network.
+There is no host port to enable, no router forwarding, and no dependency on a
+person's Ingress session. Do not expose port 8100 to the LAN or internet.
+The generated credential is persistent private add-on data; protect its backups.
 
-Treat the token as a password with control of the shared signed-in browser.
-The connection uses internal HTTP, not transport encryption. Rotate the token in
-both the add-on and integration if it is disclosed. Do not paste it into scripts,
-URLs, screenshots, issues or logs.
+### Existing manual installations
+
+Existing configuration entries and nonempty `automation_token` options remain
+supported. Installing through HACS updates the component files; it does not
+require deleting your integration or image entity. Existing scripts continue
+using the same configuration-entry ID.
+
+### Manual fallback
+
+Without HACS, copy `custom_components/voxl_chromium` from this repository into
+`/config/custom_components/voxl_chromium`, then restart Core. You can still use
+discovery afterward. For explicit manual pairing, set a unique random
+`automation_token` of at least 32 non-space ASCII characters in the add-on,
+restart it, and add **Voxl Chromium** through **Devices & services → Add
+integration**. Enter the add-on's internal hostname, port **8100**, and that token.
+Use the hostname on the add-on information page, not a LAN address or Ingress URL.
+Keep credentials out of scripts, URLs, screenshots and logs.
 
 ## Actions
 
@@ -39,7 +61,7 @@ use its `config_entry_id`.
 | Action | Purpose |
 | --- | --- |
 | `voxl_chromium.open_url` | Open an HTTP(S) URL. `new_tab: true` is the default; false navigates the active tab. |
-| `voxl_chromium.restore_window` | Restore and focus a minimized Chromium window. |
+| `voxl_chromium.restore_window` | Restore/focus Chromium, or reopen it with the existing profile if closed. |
 | `voxl_chromium.screenshot` | Capture the visible desktop and update the last-screenshot image entity; optionally save a PNG. |
 | `voxl_chromium.record` | Record a short desktop clip to an approved MP4 filename. `seconds` is between 1 and 60. |
 | `voxl_chromium.wait_for_screen` | Wait for visual idle, with `idle_ms`, `timeout_ms` and optional `[x, y, width, height]` region. Returns change/timeout information. |
@@ -118,8 +140,9 @@ and remove them when no longer needed. They are not automatically deleted.
 
 ## Limits and troubleshooting
 
-- If setup cannot connect, confirm the add-on is running, the token is configured,
-  the internal hostname is correct, and both sides use port 8100. Never fix this
+- If discovery is missing, complete HACS installation and the Core restart, then
+  enable **Home Assistant actions** and restart the add-on. For manual setup,
+  check the internal hostname, token and port 8100. Never fix this
   by exposing Voxl's unauthenticated port or weakening the Ingress allowlist.
 - After changing the token, update the integration credentials as well as the
   add-on configuration and restart the add-on.
@@ -130,5 +153,5 @@ and remove them when no longer needed. They are not automatically deleted.
 - Browser control and captures are privileged operations. Review which scripts,
   automations and other integrations can invoke them before exposing them to
   conversational assistants.
-- Development tests and container smoke checks are not evidence of successful
-  installation, discovery, backup/restore or upgrade on a live Supervisor host.
+- See [verification status](TESTING.md#verification-status) for the distinction
+  between container/harness tests and checks on a live Supervisor host.

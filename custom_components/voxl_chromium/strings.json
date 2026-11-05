@@ -2,6 +2,10 @@
   "title": "Voxl Chromium",
   "config": {
     "step": {
+      "hassio_confirm": {
+        "title": "Connect to Voxl Chromium",
+        "description": "The Supervisor discovered the Voxl Chromium add-on. Confirm to connect Home Assistant to its native automation API, or update the existing connection. No browser actions run during setup."
+      },
       "user": {
         "title": "Connect to Voxl Chromium",
         "description": "Enter the add-on internal hostname (or IP), native API port and automation token. Do not enter a URL.",
@@ -36,6 +40,10 @@
       "invalid_input": "Enter a DNS hostname or IP and a token of at least 32 printable characters."
     },
     "abort": {
+      "invalid_discovery": "The add-on supplied invalid discovery data. Use manual setup or restart the add-on.",
+      "invalid_auth": "Authentication failed. Check the add-on automation configuration or use manual setup.",
+      "cannot_connect": "Unable to connect to the add-on native API. Restart the add-on or use manual setup.",
+      "discovery_updated": "Add-on connection updated.",
       "already_configured": "This endpoint is already configured.",
       "reauth_successful": "Authentication updated.",
       "reconfigure_successful": "Connection updated.",

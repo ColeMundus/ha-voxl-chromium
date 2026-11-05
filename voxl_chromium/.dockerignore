@@ -3,6 +3,7 @@
 !upstream.json
 !runtime.py
 !control.py
+!supervisor_discovery.py
 !chromium-policy.json
 !nginx.conf
 !LICENSE

@@ -78,6 +78,8 @@ if p.get('window'):
 else:
     windows = prop(x.XDefaultRootWindow(d), '_NET_CLIENT_LIST')
     matches = [w for w in windows if 'chromium' in str(prop(w, 'WM_CLASS')).lower()]
+    if p.get('list'):
+        print(json.dumps({'windows': matches})); x.XCloseDisplay(d); sys.exit(0)
     assert len(matches) == 1, 'Expected exactly one Chromium window'
     window = matches[0]
 if p.get('minimize'):
@@ -317,6 +319,64 @@ def docker(*args, check=True):
     ).strip()
 
 
+def close_chromium(app):
+    windows = eventually(
+        lambda: exec_python(app, WINDOW_CLIENT, {"list": True})["windows"]
+    )
+    assert len(windows) == 1, "Expected exactly one Chromium window"
+    window = windows[0]
+    docker(
+        "exec",
+        "--user",
+        "1000:1000",
+        "-e",
+        "DISPLAY=:99",
+        app,
+        "wmctrl",
+        "-i",
+        "-c",
+        hex(window),
+    )
+
+    def closed():
+        managed = docker(
+            "exec", "--user", "1000:1000", "-e", "DISPLAY=:99", app, "wmctrl", "-l"
+        )
+        return window not in {
+            int(line.split()[0], 16) for line in managed.splitlines() if line.split()
+        }
+
+    eventually(closed)
+    assert docker("inspect", "--format", "{{.State.Running}}", app) == "true"
+
+
+def closed_browser_checks(app, base, root):
+    # Closing the last browser window must not kill the desktop or control API.
+    close_chromium(app)
+    assert request(root + "healthz")[0] == 200
+    assert automation_request(app, "/health")["status"] == 200
+    assert automation_request(app, "/screenshot")["status"] == 200
+    assert automation_request(app, "/restore_window", {})["status"] == 200
+    eventually(
+        lambda: (
+            json.loads(request(base + "/state")[1])["previousStorage"] == "persisted"
+        )
+    )
+    exec_python(app, WINDOW_CLIENT, {})  # Exactly one managed Chromium window.
+
+    close_chromium(app)
+    url = "http://172.30.32.2:8080/navigation?id=closed-recovery"
+    assert automation_request(app, "/open_url", {"url": url})["status"] == 200
+    eventually(
+        lambda: (
+            "closed-recovery"
+            in json.loads(request(base + "/navigation_state")[1])["acks"]
+        )
+    )
+    exec_python(app, WINDOW_CLIENT, {})
+    print("PASS: closing last browser preserves desktop/API; restore/open relaunch it")
+
+
 def request(url, data=None, method=None, headers=None):
     req = urllib.request.Request(url, data=data, method=method, headers=headers or {})
     try:
@@ -506,6 +566,7 @@ def run(image):
             assert process_check == "ok"
             print("PASS: Chromium UID 1000, no Supervisor token inherited")
             assert json.loads(request(base + "/state")[1])["previousStorage"] == "null"
+            closed_browser_checks(app, base, root)
             settings = json.loads(options.read_text())
             settings["resize"] = True
             settings.pop("automation_token")  # Omitted option disables the API.
@@ -540,6 +601,27 @@ with socket.socket() as connection:
                     "Automation API still listening when disabled"
                 )
             print("PASS: omitted automation token disables internal/network listener")
+
+            close_chromium(app)
+            assert request(root + "healthz")[0] == 200
+            # The same fixed-operation helper as Openbox's restore menu item.
+            docker(
+                "exec",
+                "--user",
+                "1000:1000",
+                app,
+                "python3",
+                "/opt/addon/control.py",
+                "--restore-local",
+            )
+            exec_python(app, WINDOW_CLIENT, {})
+            eventually(
+                lambda: (
+                    json.loads(request(base + "/state")[1])["previousStorage"]
+                    == "persisted"
+                )
+            )
+            print("PASS: local restore relaunches Chromium with automation disabled")
 
             with sync_playwright() as pw:
                 browser = pw.chromium.launch(args=["--no-sandbox"])

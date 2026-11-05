@@ -1,12 +1,11 @@
 """Private authenticated automation boundary; deliberately no access logging."""
 
-import argparse
 import hmac
 import http.client
 import json
 import os
 import socket
-import stat
+import socketserver
 import subprocess
 import sys
 import threading
@@ -20,14 +19,25 @@ MAX_PNG = 32 * 1024 * 1024
 MAX_MP4 = 128 * 1024 * 1024
 BODY_TIMEOUT = 5
 HEADER_TIMEOUT = 5
+WINDOW_TIMEOUT = 8
+LOCAL_SOCKET = "/tmp/browser-runtime/browser.sock"
 
 
 class BrowserBackend:
-    def __init__(self, language="en-US", upstream_port=6901):
+    def __init__(
+        self,
+        language="en-US",
+        upstream_port=6901,
+        launcher=None,
+        start_url="https://www.home-assistant.io",
+    ):
         self.browser = commands(validate_options({"language": language}))["chromium"][
             :-1
         ]
         self.upstream_port = upstream_port
+        self.launcher = launcher or self.run
+        self.start_url = start_url
+        self.lifecycle = threading.RLock()
 
     def run(self, argv, capture=False):
         return subprocess.run(
@@ -39,23 +49,24 @@ class BrowserBackend:
             text=True,
         )
 
-    def restore_window(self):
+    def find_window(self):
         windows = self.run(["wmctrl", "-l"], capture=True).stdout.splitlines()
         # Chromium puts the profile path (which may contain spaces) in res_name.
         # Match X11 res_class independently; wmctrl's text columns cannot parse it.
-        chromium = {
-            int(value)
-            for value in self.run(
+        try:
+            matches = self.run(
                 ["xdotool", "search", "--class", "^Chromium$"], capture=True
             ).stdout.split()
-        }
+        except subprocess.CalledProcessError:
+            matches = []
+        chromium = {int(value) for value in matches}
         candidates = [
             line.split()[0]
             for line in windows
             if line.split() and int(line.split()[0], 16) in chromium
         ]
         if not candidates:
-            raise RuntimeError("browser unavailable")
+            return None
         window = candidates[0]
         try:
             active = int(
@@ -66,6 +77,22 @@ class BrowserBackend:
             )
         except (subprocess.CalledProcessError, ValueError):
             pass
+        return window
+
+    def restore_window(self):
+        with self.lifecycle:
+            window = self.find_window()
+            if window is None:
+                self.launcher(self.browser + [self.start_url])
+                deadline = time.monotonic() + WINDOW_TIMEOUT
+                while window is None and time.monotonic() < deadline:
+                    time.sleep(0.1)
+                    window = self.find_window()
+                if window is None:
+                    raise RuntimeError("browser unavailable")
+            return self.focus_window(window)
+
+    def focus_window(self, window):
         # Activate by an exact class-derived ID, never a page-controlled title.
         self.run(["wmctrl", "-i", "-a", window])
         self.run(["xdotool", "windowactivate", "--sync", window])
@@ -75,8 +102,18 @@ class BrowserBackend:
         return window
 
     def open_url(self, url, new_tab):
+        with self.lifecycle:
+            self._open_url(url, new_tab)
+
+    def _open_url(self, url, new_tab):
         if new_tab:
-            self.run(self.browser + ["--new-tab", url])
+            # The runtime owns every process, including profile-forwarding launchers.
+            self.launcher(self.browser + ["--new-tab", url])
+            deadline = time.monotonic() + WINDOW_TIMEOUT
+            while self.find_window() is None and time.monotonic() < deadline:
+                time.sleep(0.1)
+            if self.find_window() is None:
+                raise RuntimeError("browser unavailable")
             self.restore_window()
         else:
             self.restore_window()
@@ -161,6 +198,62 @@ class BrowserBackend:
         if len(result) < 12 or result[4:8] != b"ftyp":
             raise ValueError
         return result
+
+
+class LocalRestoreServer(socketserver.ThreadingUnixStreamServer):
+    """Filesystem-authenticated fixed-operation recovery; no shell or URL input."""
+
+    daemon_threads = True
+
+    def __init__(self, path, backend):
+        self.backend = backend
+        self.lifecycle = getattr(backend, "lifecycle", threading.RLock())
+        self.workers = threading.BoundedSemaphore(4)
+        super().__init__(path, LocalRestoreHandler)
+        os.chmod(path, 0o600)
+
+    def process_request(self, request, client_address):
+        if not self.workers.acquire(blocking=False):
+            self.shutdown_request(request)
+            return
+        try:
+            super().process_request(request, client_address)
+        except BaseException:
+            self.workers.release()
+            raise
+
+    def process_request_thread(self, request, client_address):
+        try:
+            super().process_request_thread(request, client_address)
+        finally:
+            self.workers.release()
+
+    def handle_error(self, request, client_address):
+        pass
+
+
+class LocalRestoreHandler(socketserver.StreamRequestHandler):
+    def handle(self):
+        self.connection.settimeout(1)
+        if self.rfile.read(1) != b"R":
+            return
+        if not self.server.lifecycle.acquire(blocking=False):
+            return
+        try:
+            self.server.backend.restore_window()
+            self.wfile.write(b"OK")
+        except Exception:
+            pass
+        finally:
+            self.server.lifecycle.release()
+
+
+def restore_local():
+    with socket.socket(socket.AF_UNIX) as client:
+        client.settimeout(WINDOW_TIMEOUT + 3)
+        client.connect(LOCAL_SOCKET)
+        client.sendall(b"R")
+        return 0 if client.recv(2) == b"OK" else 1
 
 
 class ControlServer(ThreadingHTTPServer):
@@ -417,34 +510,13 @@ def validate_request(path, data):
 
 
 def main(argv=None):
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--token-file", required=True)
-    parser.add_argument("--language", default="en-US")
-    args = parser.parse_args(argv)
-    server = None
-    try:
-        if os.geteuid() != 1000:
-            raise ValueError
-        fd = os.open(args.token_file, os.O_RDONLY | os.O_NOFOLLOW)
-        with os.fdopen(fd, "r", encoding="ascii") as stream:
-            info = os.fstat(stream.fileno())
-            if (
-                not stat.S_ISREG(info.st_mode)
-                or stat.S_IMODE(info.st_mode) != 0o600
-                or info.st_uid != os.getuid()
-            ):
-                raise ValueError
-            token = stream.read()
-            os.unlink(args.token_file)
-        server = ControlServer(("0.0.0.0", 8100), token, BrowserBackend(args.language))
-        server.serve_forever()
-        return 0
-    except Exception:
-        print("Automation service failed", file=sys.stderr, flush=True)
+    """The desktop menu's fixed-operation client; runtime owns the API server."""
+    if (sys.argv[1:] if argv is None else argv) != ["--restore-local"]:
         return 1
-    finally:
-        if server is not None:
-            server.server_close()
+    try:
+        return restore_local()
+    except OSError:
+        return 1
 
 
 if __name__ == "__main__":

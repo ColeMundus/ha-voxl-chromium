@@ -25,6 +25,7 @@ resize: true
 resize_scale: 1.0
 timezone: Etc/UTC
 language: en-US
+automation_enabled: false
 automation_token: ""
 ```
 
@@ -39,7 +40,8 @@ automation_token: ""
 | `resize_scale` | Scale used for viewer-requested resizing. Start at `1.0`; adjust conservatively if the desktop is too large or small. |
 | `timezone` | IANA time zone name for the container/browser environment, for example `Etc/UTC` or `America/Chicago`. |
 | `language` | Chromium language preference, default `en-US`; websites may also apply their own account/location preferences. |
-| `automation_token` | Empty disables the automation API. Set a unique random token of at least 32 characters to enable authenticated control on private container port 8100. Never publish this port. See the [automation guide](https://github.com/ColeMundus/ha-voxl-chromium/blob/main/AUTOMATION.md). |
+| `automation_enabled` | Enable **Home Assistant actions**. The add-on generates a persistent private credential and advertises the integration to Supervisor. Install the companion integration through HACS once, then confirm discovery. Default: disabled. |
+| `automation_token` | Optional explicit credential for existing/manual setups. A nonempty token of at least 32 non-space ASCII characters also enables the API, independently of the toggle. Normally leave empty and use `automation_enabled`. Never publish port 8100. See the [automation guide](https://github.com/ColeMundus/ha-voxl-chromium/blob/main/AUTOMATION.md). |
 
 The add-on configuration schema is the authority for accepted ranges and types. Reducing `width`, `height`, `fps`, and `bitrate_kbps` can help on slow hardware or connections. With `resize: true`, the desktop follows the viewer up to the configured initial dimensions; disable resizing when you need a fixed desktop size.
 
@@ -47,7 +49,7 @@ The add-on configuration schema is the authority for accepted ranges and types. 
 
 - `/data/profile` holds the Chromium profile, including cookies, history, site data, and any stored credentials. Chromium uses `--password-store=basic`, without an OS keyring-backed secret store; do not assume saved passwords are securely encrypted at rest.
 - `/data/Downloads` holds browser downloads. This is private add-on storage, not the Home Assistant host's Downloads directory or a mounted shared folder.
-- Ordinary restarts retain add-on data. Include this add-on's data in Home Assistant backups, protect those backups, and test restore before relying on them. Live backup/restore and upgrade behavior have not yet been verified.
+- Ordinary restarts retain add-on data. Include this add-on's data in Home Assistant backups and protect those backups. Installed upgrades and backup creation have been verified; restoration has not been tested on a live Supervisor host. Do not restore over a working profile merely to test it.
 - Removing the add-on or deleting its data can destroy both directories. An update should not require deleting a profile. Stop the add-on and back up its data before attempting profile recovery.
 - Treat the desktop as shared by all authorized viewers, not as separate profiles or sessions per Home Assistant user. Do not assume Chromium logins are restricted to the person who entered them.
 
@@ -55,7 +57,7 @@ Upstream-update PRs and Dependabot changes are reviewed, not automatically merge
 
 ## Security limitations
 
-Interactive viewing uses Supervisor Ingress. nginx allows only the connecting Supervisor address `172.30.32.2`; voxl binds to loopback with its own authentication disabled. There are **no published ports**. Optional automation uses a separate bearer-authenticated API on the private add-on network, disabled when `automation_token` is empty. It does not bypass or change Ingress authentication. Do not expose either internal service, use host networking, or remove the allowlist to work around an access problem.
+Interactive viewing uses Supervisor Ingress. nginx allows only the connecting Supervisor address `172.30.32.2`; voxl binds to loopback with its own authentication disabled. There are **no published ports**. Optional automation uses a separate bearer-authenticated API on the private add-on network, disabled when `automation_enabled` is false and `automation_token` is empty. It does not bypass or change Ingress authentication. Do not expose either internal service, use host networking, or remove the allowlist to work around an access problem.
 
 Chromium runs as UID 1000 but **without Chromium's sandbox**, because the container's Docker restrictions prevent the normal sandbox setup. This materially weakens protection against malicious pages and browser exploits; a non-root account and a container do not replace the browser sandbox. An exploit can threaten browser sessions, downloads, and reachable network services, and further flaws may allow container escape.
 
@@ -64,9 +66,15 @@ infobar using the managed `CommandLineFlagSecurityWarningsEnabled` policy. This
 only changes presentation; it does not enable the sandbox or improve isolation.
 No broad `--test-type` or `--disable-web-security` switches are added.
 
-No Home Assistant/Supervisor API access/token or host-directory mounts are requested. This does not block network access to your LAN or prevent credentials you type into Chromium from being stored in its profile. Limit access and use appropriately trusted browsing workloads. The [security policy](https://github.com/ColeMundus/ha-voxl-chromium/blob/main/SECURITY.md) explains private reporting.
+No broad Home Assistant/Supervisor API permissions or host-directory mounts are requested. Optional pairing uses Supervisor's basic self-info and discovery endpoints; its runtime credential is never forwarded into Chromium. This does not block network access to your LAN or prevent credentials you type into Chromium from being stored in its profile. Limit access and use appropriately trusted browsing workloads. The [security policy](https://github.com/ColeMundus/ha-voxl-chromium/blob/main/SECURITY.md) explains private reporting.
 
 ## Troubleshooting
+
+If Chromium is minimized, use **Alt+Tab** or middle-click the empty desktop for
+Openbox's window list. If it was closed, right-click the empty desktop and choose
+**Open / restore Chromium**. The streamed desktop stays running; the menu item
+reopens the same profile. The integration's **Restore window** and **Open URL**
+actions also relaunch a closed browser. These do not reset profile data.
 
 | Symptom | Checks |
 | --- | --- |

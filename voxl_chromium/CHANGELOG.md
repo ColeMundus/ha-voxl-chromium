@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.3.0
+
+- Keep the streamed desktop running when the last Chromium window is closed.
+  Restore Browser and Open URL can relaunch Chromium with its existing profile.
+- Add **Open / restore Chromium** to the desktop's right-click menu, available
+  even when optional Home Assistant automation is disabled.
+- Add opt-in **Home Assistant actions** setup: generate a persistent private
+  credential and advertise the companion integration through Supervisor discovery.
+  Confirm the discovered integration instead of copying hostnames and tokens.
+- Support companion installation through HACS using this same repository. HACS
+  installation and a Core restart remain separate from installing the add-on.
+- Preserve existing manual credentials, configuration entries and script IDs.
+- Document the verified Home Assistant 2026.10.0 minimum and distinguish completed
+  installed upgrades/backup creation from untested live backup restoration.
+- Add README branding, concise compatibility/install badges and real HACS/hassfest
+  validation. Update reviewed GitHub Actions and the Rust builder to 1.99.0.
+
 ## 0.2.1
 
 - Bundle local brand images with the companion integration so Home Assistant

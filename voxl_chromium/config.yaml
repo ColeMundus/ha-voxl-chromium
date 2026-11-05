@@ -1,5 +1,5 @@
 name: Voxl Chromium
-version: "0.2.1"
+version: "0.3.0"
 slug: voxl_chromium
 description: Persistent Chromium browser streamed through voxl and Home Assistant Ingress
 url: https://github.com/ColeMundus/ha-voxl-chromium
@@ -15,6 +15,8 @@ ingress: true
 ingress_stream: true
 panel_icon: mdi:google-chrome
 panel_title: Chromium
+discovery:
+  - voxl_chromium
 
 options:
   start_url: https://www.home-assistant.io
@@ -28,6 +30,7 @@ options:
   timezone: Etc/UTC
   language: en-US
   automation_token: ""
+  automation_enabled: false
 schema:
   start_url: url
   width: int(640,3840)
@@ -40,3 +43,4 @@ schema:
   timezone: str
   language: str
   automation_token: password
+  automation_enabled: bool

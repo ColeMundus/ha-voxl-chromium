@@ -61,6 +61,79 @@ class Backend:
         return b"\x00\x00\x00\x18ftypmp42fixture"
 
 
+def test_missing_window_relaunch_is_bounded_and_uses_owned_launcher(monkeypatch):
+    from types import SimpleNamespace
+
+    import control
+
+    launched = []
+    backend = control.BrowserBackend(launcher=lambda argv: launched.append(argv))
+
+    def run(argv, capture=False):
+        if argv == ["wmctrl", "-l"]:
+            return SimpleNamespace(stdout="0x0123 0 host Browser\n" if launched else "")
+        if argv == ["xdotool", "search", "--class", "^Chromium$"]:
+            return SimpleNamespace(stdout="291\n" if launched else "")
+        return SimpleNamespace(stdout="291\n")
+
+    monkeypatch.setattr(backend, "run", run)
+    assert backend.restore_window() == "0x0123"
+    assert len(launched) == 1
+    assert "--user-data-dir=/data/profile" in launched[0]
+    assert launched[0][-1] == "https://www.home-assistant.io"
+    backend.restore_window()
+    assert len(launched) == 1
+    backend.open_url("https://example.com", True)
+    assert len(launched) == 2
+    assert launched[-1][-2:] == ["--new-tab", "https://example.com"]
+    monkeypatch.setattr(backend, "find_window", lambda: None)
+    monkeypatch.setattr(control, "WINDOW_TIMEOUT", 0.02)
+    with pytest.raises(RuntimeError):
+        backend.restore_window()
+    assert len(launched) == 3
+
+
+def test_local_restore_works_without_api_and_does_not_accept_commands(tmp_path):
+    import socket
+    import stat
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    import control
+
+    backend = Backend()
+    # The CLI path is fixed in production; exercise the same wire contract here.
+    path = tmp_path / "browser.sock"
+    server = control.LocalRestoreServer(str(path), backend)
+    worker = threading.Thread(target=server.serve_forever, daemon=True)
+    worker.start()
+    try:
+        assert stat.S_IMODE(path.stat().st_mode) == 0o600
+        script = (
+            "import control,sys; control.LOCAL_SOCKET=sys.argv[1]; "
+            "raise SystemExit(control.main(['--restore-local']))"
+        )
+        result = subprocess.run(
+            [sys.executable, "-c", script, str(path)],
+            cwd=Path(control.__file__).parent,
+            capture_output=True,
+            timeout=3,
+        )
+        assert result.returncode == 0, result.stderr
+        assert backend.calls == [("restore",)]
+        with socket.socket(socket.AF_UNIX) as client:
+            client.settimeout(2)
+            client.connect(str(path))
+            client.sendall(b"!https://example.com")
+            assert client.recv(2) == b""
+        assert backend.calls == [("restore",)]
+    finally:
+        server.shutdown()
+        server.server_close()
+        worker.join(timeout=2)
+
+
 def test_routes_and_defaults():
     backend = Backend()
     with serving(backend) as server:
@@ -309,40 +382,13 @@ def test_mutations_serialized_and_capture_concurrency_limited():
         assert all(f.result()[0] == 200 for f in pending)
 
 
-def test_private_token_is_consumed_and_default_bind_is_internal(monkeypatch, tmp_path):
-
+def test_api_rejects_empty_token_and_local_cli_rejects_unknown_operations():
     import control
-
-    token_file = tmp_path / "token"
-    token_file.write_text(TOKEN)
-    token_file.chmod(0o600)
-    monkeypatch.setattr(control.os, "geteuid", lambda: 1000)
-    # Owner validation uses the actual file owner, normally UID1000 in runtime.
-    monkeypatch.setattr(control.os, "getuid", lambda: token_file.stat().st_uid)
-    calls = []
-
-    class Server:
-        def __init__(self, address, token, backend):
-            calls.append((address, token, backend))
-
-        def serve_forever(self):
-            assert not token_file.exists()
-
-        def server_close(self):
-            pass
 
     with pytest.raises(ValueError):
         control.ControlServer(("127.0.0.1", 0), "")
-    monkeypatch.setattr(control, "ControlServer", Server)
-    assert control.main(["--token-file", str(token_file), "--language", "en-US"]) == 0
-    assert calls[0][0] == ("0.0.0.0", 8100)
-    assert calls[0][1] == TOKEN
-    assert not token_file.exists()
-    token_file.write_text(TOKEN)
-    token_file.chmod(0o644)
-    assert control.main(["--token-file", str(token_file)]) == 1
-    assert len(calls) == 1
-    token_file.unlink()
+    assert control.main([]) == 1
+    assert control.main(["--run-shell", "id"]) == 1
 
 
 def test_restore_endpoint_returns_ok_not_internal_window_id():
