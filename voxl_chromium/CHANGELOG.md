@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.2.1
+
+- Bundle local brand images with the companion integration so Home Assistant
+  displays its icon instead of the missing-icon placeholder.
+- Use Chromium's managed `CommandLineFlagSecurityWarningsEnabled` policy to
+  suppress the recurring command-line flag infobar in this dedicated desktop.
+  This is a presentation change: Chromium still runs without its sandbox and
+  no container privileges are added. The documented security limitation remains.
+
 ## 0.2.0
 
 - Add an optional authenticated automation API on the private add-on network;

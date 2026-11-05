@@ -59,6 +59,11 @@ Interactive viewing uses Supervisor Ingress. nginx allows only the connecting Su
 
 Chromium runs as UID 1000 but **without Chromium's sandbox**, because the container's Docker restrictions prevent the normal sandbox setup. This materially weakens protection against malicious pages and browser exploits; a non-root account and a container do not replace the browser sandbox. An exploit can threaten browser sessions, downloads, and reachable network services, and further flaws may allow container escape.
 
+The dedicated desktop suppresses Chromium's recurring command-line warning
+infobar using the managed `CommandLineFlagSecurityWarningsEnabled` policy. This
+only changes presentation; it does not enable the sandbox or improve isolation.
+No broad `--test-type` or `--disable-web-security` switches are added.
+
 No Home Assistant/Supervisor API access/token or host-directory mounts are requested. This does not block network access to your LAN or prevent credentials you type into Chromium from being stored in its profile. Limit access and use appropriately trusted browsing workloads. The [security policy](https://github.com/ColeMundus/ha-voxl-chromium/blob/main/SECURITY.md) explains private reporting.
 
 ## Troubleshooting

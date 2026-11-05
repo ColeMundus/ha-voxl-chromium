@@ -1,5 +1,6 @@
 """TEST ONLY checks executed inside the disposable application container."""
 
+import json
 import os
 import signal
 import sys
@@ -23,6 +24,14 @@ def denied():
 
 
 def browser_identity():
+    policy = Path("/etc/chromium/policies/managed/voxl.json")
+    assert json.loads(policy.read_text()) == {
+        "CommandLineFlagSecurityWarningsEnabled": False
+    }
+    assert policy.stat().st_uid == 0
+    assert policy.stat().st_mode & 0o022 == 0
+    assert not os.access(policy, os.W_OK)
+    assert all(os.access(parent, os.X_OK) for parent in policy.parents)
     found = 0
     for proc in Path("/proc").glob("[0-9]*"):
         try:

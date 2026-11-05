@@ -17,7 +17,10 @@ GPL version 2 text. Independent bundled programs retain their own licenses.
 The listing images `voxl_chromium/icon.png` and `voxl_chromium/logo.png` are
 unmodified [Chromium product icons](https://chromium.googlesource.com/chromium/src/+/69b49b65cdf99ce36bcac08e7c4918a7f8a13458/chrome/app/theme/chromium/).
 Their copyright and BSD license are reproduced in
-[CHROMIUM-LICENSE](voxl_chromium/CHROMIUM-LICENSE). No upstream endorsement is implied.
+[CHROMIUM-LICENSE](voxl_chromium/CHROMIUM-LICENSE). The companion integration's
+`custom_components/voxl_chromium/brand/` directory carries copies of the same
+artwork and its BSD notice for Home Assistant's local branding API. No upstream
+endorsement is implied.
 
 The checksum-verified original voxl archive is modified by the exact dependency
 patch in this repository. Preserve the patch, original license and provenance

@@ -22,7 +22,7 @@ RUN git apply --check /build/patches/zip-security.patch \
     && strip target/release/voxl
 
 FROM debian:bookworm-slim
-ARG BUILD_VERSION=0.2.0
+ARG BUILD_VERSION=0.2.1
 LABEL org.opencontainers.image.title="Voxl Chromium for Home Assistant" \
     org.opencontainers.image.source="https://github.com/ColeMundus/ha-voxl-chromium" \
     org.opencontainers.image.version="${BUILD_VERSION}" \
@@ -43,6 +43,8 @@ COPY patches/ /usr/share/doc/voxl/patches/
 COPY MODIFICATIONS.md /usr/share/doc/voxl/MODIFICATIONS.md
 COPY LICENSE /usr/share/doc/ha-voxl-chromium/LICENSE
 COPY runtime.py control.py nginx.conf /opt/addon/
+RUN install -d -m 0755 /etc/chromium/policies /etc/chromium/policies/managed
+COPY --chmod=0644 chromium-policy.json /etc/chromium/policies/managed/voxl.json
 # tini is our own PID 1; config.yaml therefore sets init: false.
 ENTRYPOINT ["/usr/bin/tini", "--", "python3", "/opt/addon/runtime.py"]
 HEALTHCHECK --interval=30s --timeout=5s --start-period=60s \

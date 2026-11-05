@@ -16,7 +16,7 @@ ADDON = ROOT / "voxl_chromium"
 
 def test_control_runtime_is_packaged_without_host_port_publication():
     config = yaml.safe_load((ADDON / "config.yaml").read_text())
-    assert config["version"] == "0.2.0"
+    assert config["version"] == "0.2.1"
     assert config["options"]["automation_token"] == ""
     assert config["schema"]["automation_token"] == "password"
     assert "ports" not in config
@@ -26,6 +26,23 @@ def test_control_runtime_is_packaged_without_host_port_publication():
     for required in ("runtime.py", "control.py", "nginx.conf"):
         assert f"!{required}" in allowed
     assert "wmctrl" in dockerfile and "xdotool" in dockerfile
+
+
+def test_supported_browser_policy_only_suppresses_the_flag_banner():
+    policy = json.loads((ADDON / "chromium-policy.json").read_text())
+    assert policy == {"CommandLineFlagSecurityWarningsEnabled": False}
+    dockerfile = (ADDON / "Dockerfile").read_text()
+    assert (
+        "COPY --chmod=0644 chromium-policy.json "
+        "/etc/chromium/policies/managed/voxl.json" in dockerfile
+    )
+    assert "!chromium-policy.json" in (ADDON / ".dockerignore").read_text()
+    # Presentation change only: don't add privileges or broad test-mode flags.
+    from runtime import commands
+
+    argv = commands(validate_options({}))["chromium"]
+    assert "--no-sandbox" in argv
+    assert "--test-type" not in argv and "--disable-web-security" not in argv
 
 
 def test_manifest_matches_runtime_options():

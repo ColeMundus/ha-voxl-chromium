@@ -3,6 +3,7 @@
 !upstream.json
 !runtime.py
 !control.py
+!chromium-policy.json
 !nginx.conf
 !LICENSE
 !MODIFICATIONS.md

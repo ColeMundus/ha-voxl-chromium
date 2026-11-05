@@ -211,11 +211,15 @@ def automation_checks(app, proxy, base, page, artifacts):
             const canvas = document.createElement('canvas');
             canvas.width=image.width; canvas.height=image.height;
             const ctx=canvas.getContext('2d'); ctx.drawImage(image,0,0);
-            return Array.from(ctx.getImageData(200,550,1,1).data);
+            return [100,550].map(y =>
+                Array.from(ctx.getImageData(200,y,1,1).data));
         }""",
             base64.b64encode(png).decode(),
         )
-        if pixel[:3] != expected:
+        (artifacts / "automation-last.png").write_bytes(png)
+        # The content starts below the toolbar (~87px). An unsafe-flag
+        # infobar would cover y=100, so check both the top and body pixels.
+        if any(sample[:3] != expected for sample in pixel):
             return False
         (artifacts / "automation.png").write_bytes(png)
         return True
