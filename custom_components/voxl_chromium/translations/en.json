@@ -1,0 +1,45 @@
+{
+  "title": "Voxl Chromium",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect to Voxl Chromium",
+        "description": "Enter the add-on internal hostname (or IP), native API port and automation token. Do not enter a URL.",
+        "data": {
+          "host": "Host",
+          "port": "Port",
+          "token": "Automation token"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Connect to Voxl Chromium",
+        "description": "Enter the add-on internal hostname (or IP), native API port and automation token. Do not enter a URL.",
+        "data": {
+          "host": "Host",
+          "port": "Port",
+          "token": "Automation token"
+        }
+      },
+      "reconfigure": {
+        "title": "Connect to Voxl Chromium",
+        "description": "Enter the add-on internal hostname (or IP), native API port and automation token. Do not enter a URL.",
+        "data": {
+          "host": "Host",
+          "port": "Port",
+          "token": "Automation token"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Unable to connect to the native API.",
+      "invalid_auth": "Authentication failed. Check the automation token.",
+      "invalid_input": "Enter a DNS hostname or IP and a token of at least 32 printable characters."
+    },
+    "abort": {
+      "already_configured": "This endpoint is already configured.",
+      "reauth_successful": "Authentication updated.",
+      "reconfigure_successful": "Connection updated.",
+      "unique_id_mismatch": "Reauthentication must use the same endpoint."
+    }
+  }
+}

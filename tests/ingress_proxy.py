@@ -8,6 +8,22 @@ from urllib.parse import parse_qs, urlsplit
 
 PREFIX = "/api/hassio_ingress/smoke-token/"
 STATE = {"typed": "", "clicks": 0, "visits": 0, "previousStorage": None}
+NAVIGATION = {"acks": [], "visible": []}
+# Separate from the animated input/audio/persistence fixture: no localStorage writes.
+NAVIGATION_FIXTURE = b"""<!doctype html><title>Automation navigation fixture</title>
+<style>html,body{margin:0;width:100%;height:100%;background:#23a65a}
+#marker{position:fixed;inset:100px;background:#23a65a}</style><div id=marker></div>
+<script>
+const id = new URL(location.href).searchParams.get('id');
+fetch('/navigation_ack?id='+encodeURIComponent(id));
+function visible(){if(!document.hidden)
+  fetch('/navigation_visible?id='+encodeURIComponent(id));}
+document.addEventListener('visibilitychange',visible);visible();
+if(id==='animated'){let n=0;function tick(){
+  document.querySelector('#marker').style.background=
+    `rgb(${n%256},${(n*3)%256},${(n++*7)%256})`;
+  requestAnimationFrame(tick)}tick();}
+</script>"""
 FIXTURE = b"""<!doctype html><title>Voxl integration fixture</title>
 <style>html,body{margin:0;height:100%;overflow:hidden}body{display:grid;
 place-items:center;background:#125694}input{font-size:32px;position:fixed;
@@ -34,6 +50,14 @@ class Proxy(BaseHTTPRequestHandler):
         path = urlsplit(self.path)
         if path.path == "/fixture":
             self.reply(FIXTURE, "text/html")
+        elif path.path == "/navigation":
+            self.reply(NAVIGATION_FIXTURE, "text/html")
+        elif path.path in ("/navigation_ack", "/navigation_visible"):
+            key = "acks" if path.path == "/navigation_ack" else "visible"
+            NAVIGATION[key].append(parse_qs(path.query).get("id", [""])[0])
+            self.reply(b"ok")
+        elif path.path == "/navigation_state":
+            self.reply(json.dumps(NAVIGATION).encode(), "application/json")
         elif path.path == "/typed":
             STATE["typed"] = parse_qs(path.query).get("value", [""])[0]
             self.reply(b"ok")

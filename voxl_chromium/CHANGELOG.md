@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.2.0
+
+- Add an optional authenticated automation API on the private add-on network;
+  it is disabled until an automation token is configured, with no host port published.
+- Add a companion Home Assistant integration with native actions for opening URLs,
+  restoring Chromium, taking screenshots, recording the desktop and waiting for
+  screen changes or visual idle.
+- Add an image entity for the most recently requested screenshot.
+- Keep automation separate from interactive Ingress sessions and keep the control
+  token out of Chromium's environment and command line.
+- See the [automation setup guide](https://github.com/ColeMundus/ha-voxl-chromium/blob/main/AUTOMATION.md).
+
 ## 0.1.1
 
 - Add Chromium artwork to the add-on listing and details page, with its license.

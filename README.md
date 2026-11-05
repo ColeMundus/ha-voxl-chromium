@@ -9,6 +9,9 @@ A persistent Chromium browser inside Home Assistant, streamed through
 - Persistent browser profile and downloads.
 - Automatic desktop resizing and file transfers.
 - Opens through Home Assistant; no additional published ports.
+- Optional native Home Assistant automation actions: open URLs, restore Chromium,
+  capture screenshots, record clips and wait for screen changes. See
+  [automation setup](AUTOMATION.md) for the companion integration.
 
 ## Install
 

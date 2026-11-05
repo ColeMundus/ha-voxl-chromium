@@ -7,6 +7,7 @@ import re
 import signal
 import subprocess
 import sys
+import tempfile
 import time
 import urllib.request
 from pathlib import Path
@@ -24,6 +25,7 @@ DEFAULTS = {
     "resize_scale": 1.0,
     "timezone": "Etc/UTC",
     "language": "en-US",
+    "automation_token": "",
 }
 
 
@@ -31,6 +33,7 @@ def validate_options(options):
     if not isinstance(options, dict) or options.keys() - DEFAULTS.keys():
         raise ValueError("Unknown options or options is not an object")
     value = DEFAULTS | options
+    validate_token(value["automation_token"])
     for key, low, high in [
         ("width", 640, 3840),
         ("height", 480, 2160),
@@ -69,6 +72,42 @@ def validate_options(options):
     except (ZoneInfoNotFoundError, ValueError, TypeError) as error:
         raise ValueError("timezone must be an IANA timezone") from error
     return value
+
+
+def validate_token(token):
+    if not isinstance(token, str) or (
+        token and (len(token) < 32 or any(not 33 <= ord(c) <= 126 for c in token))
+    ):
+        raise ValueError(
+            "automation_token must be empty or at least 32 printable ASCII "
+            "characters without spaces"
+        )
+    return token
+
+
+def start_control(options):
+    """Launch only after prepare_data dropped UID and scrubbed the environment."""
+    token = options["automation_token"]
+    if not token:
+        return None
+    fd, name = tempfile.mkstemp(prefix="automation-", dir=os.environ["XDG_RUNTIME_DIR"])
+    try:
+        with os.fdopen(fd, "w", encoding="ascii") as stream:
+            stream.write(token)
+        return subprocess.Popen(
+            [
+                sys.executable,
+                str(Path(__file__).with_name("control.py")),
+                "--token-file",
+                name,
+                "--language",
+                options["language"],
+            ],
+            start_new_session=True,
+        )
+    except BaseException:
+        Path(name).unlink(missing_ok=True)
+        raise
 
 
 def commands(options):
@@ -277,6 +316,9 @@ def main():
                     ),
                     processes,
                 )
+        control = start_control(options)
+        if control is not None:
+            processes["control"] = control
         return monitor(processes)
     except (ValueError, OSError, RuntimeError, subprocess.TimeoutExpired) as error:
         print(f"Startup failed: {error}", file=sys.stderr, flush=True)

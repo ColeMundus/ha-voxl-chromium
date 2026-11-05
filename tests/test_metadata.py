@@ -14,6 +14,20 @@ ROOT = Path(__file__).parents[1]
 ADDON = ROOT / "voxl_chromium"
 
 
+def test_control_runtime_is_packaged_without_host_port_publication():
+    config = yaml.safe_load((ADDON / "config.yaml").read_text())
+    assert config["version"] == "0.2.0"
+    assert config["options"]["automation_token"] == ""
+    assert config["schema"]["automation_token"] == "password"
+    assert "ports" not in config
+    dockerfile = (ADDON / "Dockerfile").read_text()
+    assert "COPY runtime.py control.py nginx.conf /opt/addon/" in dockerfile
+    allowed = (ADDON / ".dockerignore").read_text().splitlines()
+    for required in ("runtime.py", "control.py", "nginx.conf"):
+        assert f"!{required}" in allowed
+    assert "wmctrl" in dockerfile and "xdotool" in dockerfile
+
+
 def test_manifest_matches_runtime_options():
     config = yaml.safe_load((ADDON / "config.yaml").read_text())
     assert config["options"] == DEFAULTS

@@ -12,11 +12,17 @@ uv sync --locked
 uv run pytest
 uv run ruff check .
 uv run ruff format --check .
+uv sync --locked --project integration_tests
+uv run --project integration_tests pytest integration_tests
 docker build -t ha-voxl-chromium:dev voxl_chromium
 uv run playwright install --with-deps --only-shell chromium
 uv run python tests/smoke.py --image ha-voxl-chromium:dev
 git diff --check
 ```
+
+The dedicated integration test project uses Python 3.14.2+ and the real Home
+Assistant 2026.10.4 harness; uv manages it separately from the add-on's Python
+3.11 development environment. CI executes both suites on GitHub-hosted runners.
 
 The image build context is `voxl_chromium/`, not the repository root. The smoke
 suite creates a disposable `172.30.32.0/24` Docker network, containers and volume.

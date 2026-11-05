@@ -12,6 +12,16 @@ also builds the image and exercises it through an Ingress-like test proxy:
 - Browser site-data/download persistence after restart, dynamic resolution and
   full-container shutdown when a core service fails.
 
+- Authenticated automation API over the private container network, bearer/Origin
+  rejection, new/current-tab URL navigation and actual minimize/restore state.
+- PNG dimensions/pixels, visual idle/change waits, short MP4 capture, token
+  exclusion from Chromium and disabled-listener behavior with an empty token.
+
+The separate `integration_tests/` project runs the real Home Assistant 2026.10.4
+flow, action and image-entity harness. It tests authentication, reconfiguration,
+multi-entry unloading, bounded media transport and allowlisted no-overwrite
+exports. Run `uv run --project integration_tests pytest integration_tests`.
+
 CI runs upstream voxl library tests during the build, Ruff, the Home Assistant
 metadata linter, and image/effective-Rust-lockfile vulnerability scans. Scans use
 `HIGH,CRITICAL` and `--ignore-unfixed`: a passing result is not proof that no

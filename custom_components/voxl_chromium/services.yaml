@@ -1,0 +1,148 @@
+{
+  "open_url": {
+    "name": "Open url",
+    "description": "Open an HTTP or HTTPS URL in Chromium.",
+    "fields": {
+      "config_entry_id": {
+        "name": "Config entry",
+        "required": true,
+        "selector": {
+          "config_entry": {
+            "integration": "voxl_chromium"
+          }
+        }
+      },
+      "url": {
+        "name": "URL",
+        "required": true,
+        "selector": {
+          "text": {}
+        }
+      },
+      "new_tab": {
+        "name": "New tab",
+        "required": false,
+        "selector": {
+          "boolean": {}
+        },
+        "default": true
+      }
+    }
+  },
+  "restore_window": {
+    "name": "Restore window",
+    "description": "Restore the Chromium window.",
+    "fields": {
+      "config_entry_id": {
+        "name": "Config entry",
+        "required": true,
+        "selector": {
+          "config_entry": {
+            "integration": "voxl_chromium"
+          }
+        }
+      }
+    }
+  },
+  "screenshot": {
+    "name": "Screenshot",
+    "description": "Capture the desktop and update the last-screenshot image. Optionally export to a new PNG file in an allowlisted external directory.",
+    "fields": {
+      "config_entry_id": {
+        "name": "Config entry",
+        "required": true,
+        "selector": {
+          "config_entry": {
+            "integration": "voxl_chromium"
+          }
+        }
+      },
+      "filename": {
+        "name": "Absolute output filename",
+        "required": false,
+        "selector": {
+          "text": {}
+        }
+      }
+    }
+  },
+  "record": {
+    "name": "Record",
+    "description": "Record the desktop to a new MP4 file in an allowlisted external directory.",
+    "fields": {
+      "config_entry_id": {
+        "name": "Config entry",
+        "required": true,
+        "selector": {
+          "config_entry": {
+            "integration": "voxl_chromium"
+          }
+        }
+      },
+      "filename": {
+        "name": "Absolute output filename",
+        "required": true,
+        "selector": {
+          "text": {}
+        }
+      },
+      "seconds": {
+        "name": "Seconds",
+        "required": true,
+        "selector": {
+          "number": {
+            "min": 1,
+            "max": 60,
+            "mode": "box"
+          }
+        }
+      }
+    }
+  },
+  "wait_for_screen": {
+    "name": "Wait for screen",
+    "description": "Wait for screen stability and return changed, timed_out, seq and waited_ms.",
+    "fields": {
+      "config_entry_id": {
+        "name": "Config entry",
+        "required": true,
+        "selector": {
+          "config_entry": {
+            "integration": "voxl_chromium"
+          }
+        }
+      },
+      "idle_ms": {
+        "name": "Idle milliseconds",
+        "required": false,
+        "selector": {
+          "number": {
+            "min": 1,
+            "max": 60000,
+            "mode": "box"
+          }
+        },
+        "default": 300
+      },
+      "timeout_ms": {
+        "name": "Timeout milliseconds",
+        "required": false,
+        "selector": {
+          "number": {
+            "min": 1,
+            "max": 60000,
+            "mode": "box"
+          }
+        },
+        "default": 10000
+      },
+      "region": {
+        "name": "Region [x, y, width, height]",
+        "required": false,
+        "selector": {
+          "object": {}
+        }
+      }
+    }
+  }
+}

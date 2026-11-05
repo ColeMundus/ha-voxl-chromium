@@ -26,6 +26,9 @@ configuration:
   timezone:
     name: Time zone
     description: IANA time zone used by Chromium, for example America/Chicago or Etc/UTC.
+  automation_token:
+    name: Automation access token
+    description: Leave empty to disable native automation. Otherwise use a unique random token of at least 32 characters and enter it in the companion integration. Restart after changes; never share the token or publish the internal control port.
   language:
     name: Browser language
     description: Language tag such as en-US or de-DE. Restart the add-on after changes.

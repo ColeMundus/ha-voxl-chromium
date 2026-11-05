@@ -2,6 +2,7 @@
 !Dockerfile
 !upstream.json
 !runtime.py
+!control.py
 !nginx.conf
 !LICENSE
 !MODIFICATIONS.md

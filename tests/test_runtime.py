@@ -61,6 +61,39 @@ def test_arguments_are_not_shell_interpreted():
     assert mod.commands(options)["chromium"][-1] == url
 
 
+def test_automation_token_default_validation_and_private_launch(monkeypatch, tmp_path):
+    import os
+    import stat
+    from types import SimpleNamespace
+
+    mod = runtime()
+    assert mod.validate_options({})["automation_token"] == ""
+    for token in (None, 123, "x" * 31, "x" * 32 + " ", "x" * 32 + "\n", "é" * 32):
+        with pytest.raises(ValueError):
+            mod.validate_options({"automation_token": token})
+    token = "Ab~!_-/+.=" * 4
+    options = mod.validate_options({"automation_token": token})
+    assert options["automation_token"] == token
+    assert token not in repr(mod.commands(options))
+    monkeypatch.setenv("XDG_RUNTIME_DIR", str(tmp_path))
+
+    def popen(argv, **kwargs):
+        assert token not in repr(argv) and "env" not in kwargs
+        path = Path(argv[argv.index("--token-file") + 1])
+        assert path.parent == tmp_path
+        assert stat.S_IMODE(path.stat().st_mode) == 0o600
+        assert path.read_text() == token
+        assert kwargs == {"start_new_session": True}
+        path.unlink()
+        return SimpleNamespace(pid=42)
+
+    monkeypatch.setattr(mod.subprocess, "Popen", popen)
+    assert mod.start_control(options).pid == 42
+    assert not list(tmp_path.iterdir())
+    assert mod.start_control(mod.validate_options({})) is None
+    assert os.environ.get("automation_token") is None
+
+
 def test_child_failure_terminates_other_processes():
     import subprocess
     import sys

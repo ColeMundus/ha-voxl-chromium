@@ -25,6 +25,7 @@ resize: true
 resize_scale: 1.0
 timezone: Etc/UTC
 language: en-US
+automation_token: ""
 ```
 
 | Option | Meaning |
@@ -38,6 +39,7 @@ language: en-US
 | `resize_scale` | Scale used for viewer-requested resizing. Start at `1.0`; adjust conservatively if the desktop is too large or small. |
 | `timezone` | IANA time zone name for the container/browser environment, for example `Etc/UTC` or `America/Chicago`. |
 | `language` | Chromium language preference, default `en-US`; websites may also apply their own account/location preferences. |
+| `automation_token` | Empty disables the automation API. Set a unique random token of at least 32 characters to enable authenticated control on private container port 8100. Never publish this port. See the [automation guide](https://github.com/ColeMundus/ha-voxl-chromium/blob/main/AUTOMATION.md). |
 
 The add-on configuration schema is the authority for accepted ranges and types. Reducing `width`, `height`, `fps`, and `bitrate_kbps` can help on slow hardware or connections. With `resize: true`, the desktop follows the viewer up to the configured initial dimensions; disable resizing when you need a fixed desktop size.
 
@@ -53,7 +55,7 @@ Upstream-update PRs and Dependabot changes are reviewed, not automatically merge
 
 ## Security limitations
 
-The only intended entry point is Supervisor Ingress. nginx allows only the connecting Supervisor address `172.30.32.2`; voxl binds to loopback with its own authentication disabled. There are **no published ports by default**. Do not expose internal services, use host networking, or remove the allowlist to work around an access problem.
+Interactive viewing uses Supervisor Ingress. nginx allows only the connecting Supervisor address `172.30.32.2`; voxl binds to loopback with its own authentication disabled. There are **no published ports**. Optional automation uses a separate bearer-authenticated API on the private add-on network, disabled when `automation_token` is empty. It does not bypass or change Ingress authentication. Do not expose either internal service, use host networking, or remove the allowlist to work around an access problem.
 
 Chromium runs as UID 1000 but **without Chromium's sandbox**, because the container's Docker restrictions prevent the normal sandbox setup. This materially weakens protection against malicious pages and browser exploits; a non-root account and a container do not replace the browser sandbox. An exploit can threaten browser sessions, downloads, and reachable network services, and further flaws may allow container escape.
 

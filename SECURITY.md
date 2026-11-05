@@ -2,13 +2,25 @@
 
 ## Status and threat model
 
-Version `0.1.0` is experimental. There is no security-support SLA or claim of a completed security audit. Use reviewed current source; upstream update PRs and weekly CI are detection/review mechanisms, not a guarantee that vulnerabilities are fixed. The initial distribution is source-build-only, with no project-published container image.
+This project is experimental. There is no security-support SLA or claim of a completed security audit. Use reviewed current source; upstream update PRs and weekly CI are detection/review mechanisms, not a guarantee that vulnerabilities are fixed. The initial distribution is source-build-only, with no project-published container image.
 
 Anyone who can access the browser through Ingress can interact with its shared profile, sessions, clipboard, downloads, and reachable network services. Do not treat it as a private, per-user desktop or a safe place for untrusted users to browse arbitrary sites.
 
 ## Intended boundaries
 
 - Supervisor Ingress handles user-facing access; nginx accepts connections only from `172.30.32.2`. No ports are published by default.
+- The automation API is disabled by default. Setting `automation_token` enables
+  a separate bearer-authenticated service on private container port 8100, with no
+  host port published. Treat the token as authority to control the shared browser
+  and capture whatever is displayed, including signed-in pages and sensitive data.
+  Requests with an Origin header are rejected; this is defense in depth, not a
+  substitute for the token. The internal HTTP connection assumes a trusted
+  Supervisor container network; do not publish, proxy or forward it to the LAN.
+- Screenshots and recordings can expose personal data. The companion integration
+  keeps its latest image in memory; saved files must use approved paths and are
+  not automatically removed. Avoid `/config/www` unless deliberate unauthenticated
+  `/local/` access is acceptable. Scripts and other integrations with HA action
+  access can use these actions; the token is not a per-user browser permission.
 - voxl binds to loopback and has its own authentication **disabled**. Exposing it directly or removing the nginx source allowlist bypasses the intended boundary. A forwarded address header is not a replacement for checking the connecting peer.
 - Chromium runs as UID 1000 **with its sandbox disabled because of Docker restrictions**. This removes a significant browser security layer. Non-root execution and container isolation do not replace it. A compromised page/browser may access the browser profile and downloads, attack services reachable over the network, or exploit further vulnerabilities to escape the container.
 - The add-on requests no Home Assistant/Supervisor API access or runtime API token, and no host-directory mounts. This does not prevent a user from signing into Home Assistant or other services in Chromium, storing secrets in the profile, or exposing them to someone controlling that browser.

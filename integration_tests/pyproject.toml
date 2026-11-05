@@ -1,0 +1,16 @@
+[project]
+name = "voxl-chromium-integration-tests"
+version = "0.1.0"
+requires-python = ">=3.14,<3.15"
+dependencies = ["pytest-homeassistant-custom-component==0.13.375", "homeassistant==2026.10.4"]
+
+# HA 2026.10.4 requires Python 3.14.2 or newer.
+[tool.uv]
+environments = ["python_full_version >= '3.14.2'"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+pythonpath = [".."]
+testpaths = ["."]
+addopts = "-q"

@@ -47,6 +47,21 @@ jobs:
       - run: uv run ruff check .
       - run: uv run ruff format --check .
 
+  integration:
+    name: Home Assistant integration tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
+        with:
+          python-version: '3.14'
+          enable-cache: false
+      - run: uv sync --locked --project integration_tests
+      - run: uv run --project integration_tests pytest integration_tests
+
   container:
     name: Native build and smoke (${{ matrix.arch }})
     runs-on: ${{ matrix.runner }}
