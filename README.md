@@ -19,6 +19,22 @@ A persistent Chromium browser inside Home Assistant, streamed through
   **Home Assistant actions** in the add-on, then confirm discovery—no hostname or
   token copying. See [automation setup](AUTOMATION.md).
 
+## Screenshots
+
+Chromium streamed through Voxl, displaying the public Home Assistant website.
+
+![Chromium desktop displaying the Home Assistant website](docs/screenshots/browser.jpg)
+
+<details>
+<summary>Reopening a closed browser</summary>
+
+Right-click the empty desktop and choose **Open / restore Chromium**—no add-on
+restart needed.
+
+![Openbox menu with Open / restore Chromium](docs/screenshots/restore-menu.jpg)
+
+</details>
+
 ## Install
 
 Requires **Home Assistant OS/Supervisor**, an **amd64 or aarch64** host, and an
