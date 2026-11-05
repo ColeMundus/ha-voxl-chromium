@@ -2,13 +2,13 @@
 
 ## Requirements and startup
 
-Use a Home Assistant installation with **Supervisor**, normally Home Assistant OS. Add-on installation is not available on standalone Home Assistant Core or Container. Add `https://github.com/ColeMundus/ha-voxl-chromium` to the Add-on Store repositories, install **Voxl Chromium**, and start it. The repository is public; version 0.1.0 remains experimental and live Supervisor installation has not yet been verified.
+Use Home Assistant OS/Supervisor. Add `https://github.com/ColeMundus/ha-voxl-chromium` to the Add-on Store repositories, install **Voxl Chromium**, and start it. Standalone Home Assistant Core and Container cannot install add-ons.
 
 Supervisor builds the add-on locally from its Dockerfile; there is no project-published image to pull. Allow time and disk space for compilation. Open **Web UI** through Home Assistant Ingress rather than connecting to an internal port.
 
 Your **viewing browser** needs WebCodecs with H.264 decoding and a secure context: use Home Assistant over **HTTPS**. The localhost exception applies only when the viewing browser actually opens localhost; `http://192.168.x.x` and ordinary LAN HTTP hostnames do not qualify. A successful HTTP Ingress page load alone does not prove that video decoding is available.
 
-Version `0.1.0` is experimental. `amd64` and `aarch64` are intended targets, not evidence of tests on both; no live Supervisor/Home Assistant test is claimed.
+This add-on is experimental. See [test coverage and known limitations](https://github.com/ColeMundus/ha-voxl-chromium/blob/main/TESTING.md).
 
 ## Options
 
@@ -49,7 +49,7 @@ The add-on configuration schema is the authority for accepted ranges and types. 
 - Removing the add-on or deleting its data can destroy both directories. An update should not require deleting a profile. Stop the add-on and back up its data before attempting profile recovery.
 - Treat the desktop as shared by all authorized viewers, not as separate profiles or sessions per Home Assistant user. Do not assume Chromium logins are restricted to the person who entered them.
 
-Upstream-update PRs and Dependabot changes are reviewed, not automatically merged. Weekly CI builds test ephemeral containers; they do not publish/retag images or change your installed add-on. Apply reviewed source updates through the add-on update process, allowing time for a local rebuild. Source distribution is not a claim of full corresponding-source delivery for an exported binary image; see the repository's `NOTICE.md` before sharing a local build.
+Upstream-update PRs and Dependabot changes are reviewed, not automatically merged. Weekly CI builds test ephemeral containers; they do not publish/retag images or change your installed add-on. Apply reviewed source updates through the add-on update process, allowing time for a local rebuild. Source distribution is not a claim of full corresponding-source delivery for an exported binary image; see the [licensing notices](https://github.com/ColeMundus/ha-voxl-chromium/blob/main/NOTICE.md) before sharing a local build.
 
 ## Security limitations
 
@@ -57,7 +57,7 @@ The only intended entry point is Supervisor Ingress. nginx allows only the conne
 
 Chromium runs as UID 1000 but **without Chromium's sandbox**, because the container's Docker restrictions prevent the normal sandbox setup. This materially weakens protection against malicious pages and browser exploits; a non-root account and a container do not replace the browser sandbox. An exploit can threaten browser sessions, downloads, and reachable network services, and further flaws may allow container escape.
 
-No Home Assistant/Supervisor API access/token or host-directory mounts are requested. This does not block network access to your LAN or prevent credentials you type into Chromium from being stored in its profile. Limit access and use appropriately trusted browsing workloads. The repository's `SECURITY.md` explains private reporting.
+No Home Assistant/Supervisor API access/token or host-directory mounts are requested. This does not block network access to your LAN or prevent credentials you type into Chromium from being stored in its profile. Limit access and use appropriately trusted browsing workloads. The [security policy](https://github.com/ColeMundus/ha-voxl-chromium/blob/main/SECURITY.md) explains private reporting.
 
 ## Troubleshooting
 
