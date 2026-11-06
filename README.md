@@ -2,9 +2,10 @@
 
 # Voxl Chromium for Home Assistant
 
-[![CI](https://github.com/ColeMundus/ha-voxl-chromium/actions/workflows/ci.yml/badge.svg)](https://github.com/ColeMundus/ha-voxl-chromium/actions/workflows/ci.yml)
-[![HACS custom repository](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=ColeMundus&repository=ha-voxl-chromium&category=integration)
-[![GPL-2.0-or-later](https://img.shields.io/badge/license-GPL--2.0--or--later-blue.svg)](LICENSE)
+[![CI: workflow](docs/badges/ci.svg)](https://github.com/ColeMundus/ha-voxl-chromium/actions/workflows/ci.yml)
+[![HA tested: 2026.10.4](docs/badges/compatibility.svg)](https://github.com/ColeMundus/ha-voxl-chromium/actions/workflows/ci.yml)
+[![License: GPL-2.0-or-later](docs/badges/license.svg)](LICENSE)
+[![Distribution: add-on + HACS custom](docs/badges/distribution.svg)](#install)
 
 A persistent Chromium browser inside Home Assistant, streamed through
 [voxl](https://github.com/tembo/voxl) and Supervisor Ingress.
