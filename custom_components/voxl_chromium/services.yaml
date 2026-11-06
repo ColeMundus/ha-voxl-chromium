@@ -1,4 +1,42 @@
 {
+  "click": {
+    "name": "Click",
+    "description": "Click actual desktop screenshot pixels, not scaled Ingress coordinates.",
+    "fields": {
+      "config_entry_id": {"name": "Config entry", "required": true, "selector": {"config_entry": {"integration": "voxl_chromium"}}},
+      "x": {"name": "Desktop X pixel", "required": true, "selector": {"number": {"min": 0, "max": 16383, "step": 1, "mode": "box"}}},
+      "y": {"name": "Desktop Y pixel", "required": true, "selector": {"number": {"min": 0, "max": 16383, "step": 1, "mode": "box"}}},
+      "button": {"name": "Mouse button", "required": false, "default": "left", "selector": {"select": {"options": ["left", "right", "middle"]}}},
+      "click_count": {"name": "Click count", "required": false, "default": 1, "selector": {"number": {"min": 1, "max": 2, "step": 1, "mode": "box"}}}
+    }
+  },
+  "type_text": {
+    "name": "Type text",
+    "description": "Type literal Unicode text (1–1024 codepoints), not key syntax. No newlines, tabs, control characters or surrogates. Text is not logged by the integration.",
+    "fields": {
+      "config_entry_id": {"name": "Config entry", "required": true, "selector": {"config_entry": {"integration": "voxl_chromium"}}},
+      "text": {"name": "Literal text", "required": true, "selector": {"text": {"multiline": false}}}
+    }
+  },
+  "press_key": {
+    "name": "Press key",
+    "description": "Press a case-sensitive key: A–Z, a–z, 0–9, Enter, Escape, Tab, Space, Backspace, Delete, Home, End, PageUp, PageDown, Left, Right, Up, Down or F1–F12. Optionally prefix up to three unique Ctrl/Alt/Shift modifiers joined with +, for example Ctrl+Shift+A.",
+    "fields": {
+      "config_entry_id": {"name": "Config entry", "required": true, "selector": {"config_entry": {"integration": "voxl_chromium"}}},
+      "key": {"name": "Key or chord", "required": true, "selector": {"text": {}}}
+    }
+  },
+  "scroll": {
+    "name": "Scroll",
+    "description": "Scroll at the current pointer when coordinates are omitted. Supply both x and y to move first, using actual desktop screenshot pixels, not scaled Ingress coordinates.",
+    "fields": {
+      "config_entry_id": {"name": "Config entry", "required": true, "selector": {"config_entry": {"integration": "voxl_chromium"}}},
+      "direction": {"name": "Scroll direction", "required": true, "selector": {"select": {"options": ["up", "down", "left", "right"]}}},
+      "steps": {"name": "Scroll steps", "required": false, "default": 1, "selector": {"number": {"min": 1, "max": 20, "step": 1, "mode": "box"}}},
+      "x": {"name": "Desktop X pixel", "required": false, "selector": {"number": {"min": 0, "max": 16383, "step": 1, "mode": "box"}}},
+      "y": {"name": "Desktop Y pixel", "required": false, "selector": {"number": {"min": 0, "max": 16383, "step": 1, "mode": "box"}}}
+    }
+  },
   "open_url": {
     "name": "Open url",
     "description": "Open an HTTP or HTTPS URL in Chromium.",

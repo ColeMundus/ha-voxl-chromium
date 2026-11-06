@@ -1,5 +1,6 @@
 """Native Home Assistant actions for the Voxl Chromium add-on."""
 
+import re
 from dataclasses import dataclass
 
 import probatio as vol
@@ -23,7 +24,70 @@ class Runtime:
     image: bytes | None = None
 
 
-SERVICES = ("open_url", "restore_window", "screenshot", "record", "wait_for_screen")
+SERVICES = (
+    "open_url",
+    "restore_window",
+    "screenshot",
+    "record",
+    "wait_for_screen",
+    "click",
+    "type_text",
+    "press_key",
+    "scroll",
+)
+
+
+def paired_coordinates(value):
+    """Scroll at the current pointer, or at an explicit complete coordinate pair."""
+    if ("x" in value) != ("y" in value):
+        raise vol.Invalid("Provide both x and y, or neither")
+    return value
+
+
+def key_chord(value):
+    """Validate case-sensitive named keys and unique Ctrl/Alt/Shift modifiers."""
+    if not isinstance(value, str):
+        raise vol.Invalid("Expected a canonical key chord")
+    *modifiers, key = value.split("+")
+    if (
+        len(modifiers) > 3
+        or len(set(modifiers)) != len(modifiers)
+        or any(modifier not in ("Ctrl", "Alt", "Shift") for modifier in modifiers)
+        or re.fullmatch(
+            r"[A-Za-z0-9]|Enter|Escape|Tab|Space|Backspace|Delete|Home|End|PageUp|PageDown|Left|Right|Up|Down|F(?:[1-9]|1[0-2])",
+            key,
+        )
+        is None
+    ):
+        raise vol.Invalid("Expected a canonical key chord")
+    return value
+
+
+def literal_text(value):
+    """Accept bounded Unicode text without control characters or surrogates."""
+    if (
+        not isinstance(value, str)
+        or not 1 <= len(value) <= 1024
+        or any(
+            ord(char) < 32 or 127 <= ord(char) <= 159 or 0xD800 <= ord(char) <= 0xDFFF
+            for char in value
+        )
+    ):
+        raise vol.Invalid(
+            "Expected 1–1024 Unicode characters without controls or surrogates"
+        )
+    return value
+
+
+def strict_integer(low, high):
+    """Validate native integer input without coercing bools, strings or floats."""
+
+    def validate(value):
+        if type(value) is not int or not low <= value <= high:
+            raise vol.Invalid("Expected an integer within the allowed bounds")
+        return value
+
+    return validate
 
 
 def region(value):
@@ -43,6 +107,20 @@ def register_services(hass):
         return vol.All(vol.Coerce(int), vol.Range(min=low, max=high))
 
     schemas = {
+        "scroll": {
+            vol.Required("direction"): vol.In(("up", "down", "left", "right")),
+            vol.Optional("steps", default=1): strict_integer(1, 20),
+            vol.Optional("x"): strict_integer(0, 16383),
+            vol.Optional("y"): strict_integer(0, 16383),
+        },
+        "press_key": {vol.Required("key"): key_chord},
+        "type_text": {vol.Required("text"): literal_text},
+        "click": {
+            vol.Required("x"): strict_integer(0, 16383),
+            vol.Required("y"): strict_integer(0, 16383),
+            vol.Optional("button", default="left"): vol.In(("left", "right", "middle")),
+            vol.Optional("click_count", default=1): strict_integer(1, 2),
+        },
         "open_url": {
             vol.Required("url"): url,
             vol.Optional("new_tab", default=True): bool,
@@ -96,7 +174,9 @@ def register_services(hass):
             DOMAIN,
             name,
             handle,
-            schema=vol.Schema({**select, **schemas[name]}),
+            schema=vol.All(vol.Schema({**select, **schemas[name]}), paired_coordinates)
+            if name == "scroll"
+            else vol.Schema({**select, **schemas[name]}),
             supports_response=SupportsResponse.OPTIONAL
             if name in ("wait_for_screen", "screenshot", "record")
             else SupportsResponse.NONE,

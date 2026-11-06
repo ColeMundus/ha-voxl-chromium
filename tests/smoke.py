@@ -144,6 +144,62 @@ def automation_request(container, path, body=None, headers=None, host="127.0.0.1
     return result
 
 
+def input_checks(app, base):
+    """Exercise native HTTP actions against actual Chromium, not viewer events."""
+
+    def ok(path, data):
+        response = automation_request(app, path, data)
+        assert response["status"] == 200, (path, response["status"])
+
+    def state():
+        return json.loads(request(base + "/input_state")[1])
+
+    ok("/open_url", {"url": "http://172.30.32.2:8080/input_fixture"})
+    eventually(lambda: state().get("value") == "replace me")
+    for coords in ({"x": 1280, "y": 200}, {"x": 160, "y": 720}):
+        assert automation_request(app, "/click", coords)["status"] == 400
+    ok("/click", {"x": 160, "y": 220})
+    eventually(lambda: int(state().get("clicks", 0)) > 0)
+    ok("/press_key", {"key": "Ctrl+A"})
+    literal = "héllo 世界🙂 '-- $(printf ignored)"
+    ok("/type_text", {"text": literal})
+    try:
+        eventually(lambda: state().get("value") == literal, timeout=5)
+    except AssertionError:
+        raise AssertionError(f"Synthetic input mismatch: {state()}") from None
+    ok("/press_key", {"key": "Enter"})
+    eventually(lambda: state().get("submitted") == "true")
+    for body, counter in (
+        ({"button": "right"}, "right"),
+        ({"button": "middle"}, "middle"),
+        ({"click_count": 2}, "double"),
+    ):
+        ok("/click", {"x": 700, "y": 220, **body})
+        eventually(lambda counter=counter: int(state().get(counter, 0)) > 0)
+    for direction, axis, positive in (
+        ("down", "scroll_y", True),
+        ("up", "scroll_y", False),
+        ("right", "scroll_x", True),
+        ("left", "scroll_x", False),
+    ):
+        ok("/scroll", {"direction": direction, "steps": 20, "x": 900, "y": 500})
+        eventually(
+            lambda axis=axis, positive=positive: (
+                (int(state().get(axis, 0)) > 0)
+                if positive
+                else int(state().get(axis, -1)) == 0
+            )
+        )
+    ok("/scroll", {"direction": "down"})
+    eventually(lambda: int(state().get("scroll_y", 0)) > 0)
+    ok("/press_key", {"key": "Ctrl+W"})
+    assert literal not in docker("logs", app)
+    print(
+        "PASS: native click/buttons/double-click, literal Unicode input, "
+        "keys, scrolling and pixel bounds"
+    )
+
+
 def automation_checks(app, proxy, base, page, artifacts):
     def api(path, body=None, **kwargs):
         return automation_request(app, path, body, **kwargs)
@@ -276,6 +332,8 @@ def automation_checks(app, proxy, base, page, artifacts):
     assert recording["body"][4:8] == b"ftyp"
     (artifacts / "automation.mp4").write_bytes(recording["body"])
     print("PASS: real desktop idle/change wait and one-second MP4 recording")
+
+    input_checks(app, base)
 
     # Close only the automation tab: do NOT reload /fixture, since that would
     # overwrite previousStorage before the original persistence assertions run.

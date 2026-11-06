@@ -9,6 +9,38 @@ from urllib.parse import parse_qs, urlsplit
 PREFIX = "/api/hassio_ingress/smoke-token/"
 STATE = {"typed": "", "clicks": 0, "visits": 0, "previousStorage": None}
 NAVIGATION = {"acks": [], "visible": []}
+INPUT_STATE = {}
+INPUT_FIXTURE = b"""<!doctype html><meta charset=utf-8>
+<title>Native input fixture</title>
+<style>body{margin:0;width:2400px;height:2400px;background:white;color:black}
+#challenge{position:fixed;left:100px;top:25px;font:32px sans-serif}
+#entry{position:fixed;left:100px;top:100px;width:400px;height:50px;font:24px sans-serif}
+#target{position:fixed;left:600px;top:100px;width:200px;height:100px;background:#ddd}
+#result{position:fixed;left:100px;top:250px;font:32px sans-serif}</style>
+<div id=challenge></div><input id=entry value="replace me">
+<button id=target>Click target</button>
+<div id=result>Waiting for input</div><script>
+const field=document.querySelector('#entry'), target=document.querySelector('#target');
+const challengeMode=new URL(location.href).searchParams.has('challenge');
+const code=Array.from(crypto.getRandomValues(new Uint8Array(3)),
+v=>v.toString(16).padStart(2,'0')).join('');
+document.querySelector('#challenge').textContent=challengeMode?
+'Enter code: '+code:'Native input test';
+let clicks=0,right=0,middle=0,double=0,submitted=false,timer;
+function report(){fetch('/input_update?'+new URLSearchParams({value:field.value,
+clicks,right,middle,double,submitted,scroll_x:scrollX,scroll_y:scrollY}));}
+field.addEventListener('input',()=>{clearTimeout(timer);timer=setTimeout(report,80)});
+field.addEventListener('click',()=>{clicks++;report()});
+field.addEventListener('keydown',e=>{if(e.key==='Enter'){
+submitted=challengeMode?field.value===code:field.value.length>0;
+document.querySelector('#result').textContent=submitted?'SUCCESS':'Incorrect code';
+report();}});
+target.addEventListener('click',()=>{clicks++;report()});
+target.addEventListener('dblclick',()=>{double++;report()});
+target.addEventListener('contextmenu',e=>{e.preventDefault();right++;report()});
+target.addEventListener('auxclick',e=>{e.preventDefault();if(e.button===1)middle++;report()});
+addEventListener('scroll',()=>{clearTimeout(timer);timer=setTimeout(report,80)});
+report();</script>"""
 # Separate from the animated input/audio/persistence fixture: no localStorage writes.
 NAVIGATION_FIXTURE = b"""<!doctype html><title>Automation navigation fixture</title>
 <style>html,body{margin:0;width:100%;height:100%;background:#23a65a}
@@ -58,6 +90,19 @@ class Proxy(BaseHTTPRequestHandler):
             self.reply(b"ok")
         elif path.path == "/navigation_state":
             self.reply(json.dumps(NAVIGATION).encode(), "application/json")
+        elif path.path == "/input_fixture":
+            INPUT_STATE.clear()
+            self.reply(INPUT_FIXTURE, "text/html; charset=utf-8")
+        elif path.path == "/input_update":
+            INPUT_STATE.update(
+                {
+                    k: v[0]
+                    for k, v in parse_qs(path.query, keep_blank_values=True).items()
+                }
+            )
+            self.reply(b"ok")
+        elif path.path == "/input_state":
+            self.reply(json.dumps(INPUT_STATE).encode(), "application/json")
         elif path.path == "/typed":
             STATE["typed"] = parse_qs(path.query).get("value", [""])[0]
             self.reply(b"ok")

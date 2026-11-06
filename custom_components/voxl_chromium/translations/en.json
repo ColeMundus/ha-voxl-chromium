@@ -1,5 +1,27 @@
 {
   "title": "Voxl Chromium",
+  "services": {
+    "click": {
+      "name": "Click",
+      "description": "Click actual desktop screenshot pixels, not scaled Ingress coordinates.",
+      "fields": {"config_entry_id": {"name": "Config entry"}, "x": {"name": "Desktop X pixel"}, "y": {"name": "Desktop Y pixel"}, "button": {"name": "Mouse button"}, "click_count": {"name": "Click count"}}
+    },
+    "type_text": {
+      "name": "Type text",
+      "description": "Type literal Unicode text (1–1024 codepoints), not key syntax. No newlines, tabs, control characters or surrogates. Text is not logged by the integration.",
+      "fields": {"config_entry_id": {"name": "Config entry"}, "text": {"name": "Literal text"}}
+    },
+    "press_key": {
+      "name": "Press key",
+      "description": "Press a case-sensitive key: A–Z, a–z, 0–9, Enter, Escape, Tab, Space, Backspace, Delete, Home, End, PageUp, PageDown, Left, Right, Up, Down or F1–F12. Optionally prefix up to three unique Ctrl/Alt/Shift modifiers joined with +, for example Ctrl+Shift+A.",
+      "fields": {"config_entry_id": {"name": "Config entry"}, "key": {"name": "Key or chord"}}
+    },
+    "scroll": {
+      "name": "Scroll",
+      "description": "Scroll at the current pointer when coordinates are omitted. Supply both x and y to move first, using actual desktop screenshot pixels, not scaled Ingress coordinates.",
+      "fields": {"config_entry_id": {"name": "Config entry"}, "direction": {"name": "Scroll direction"}, "steps": {"name": "Scroll steps"}, "x": {"name": "Desktop X pixel"}, "y": {"name": "Desktop Y pixel"}}
+    }
+  },
   "config": {
     "step": {
       "hassio_confirm": {

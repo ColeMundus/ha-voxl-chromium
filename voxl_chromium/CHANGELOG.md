@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.4.0
+
+- Add native Home Assistant click, literal Unicode text, key-combination and
+  directional scroll actions for the shared Chromium desktop.
+- Serialize browser input, validate coordinates against the current desktop,
+  and keep typed text out of process arguments and application logs.
+- Keep the existing opt-in authentication and internal-only control boundary;
+  no additional privileges or published ports are needed.
+
 ## 0.3.0
 
 - Keep the streamed desktop running when the last Chromium window is closed.

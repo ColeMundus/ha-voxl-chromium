@@ -16,7 +16,7 @@ ADDON = ROOT / "voxl_chromium"
 
 def test_control_runtime_is_packaged_without_host_port_publication():
     config = yaml.safe_load((ADDON / "config.yaml").read_text())
-    assert config["version"] == "0.3.0"
+    assert config["version"] == "0.4.0"
     assert config["options"]["automation_enabled"] is False
     assert config["schema"]["automation_enabled"] == "bool"
     assert config["discovery"] == ["voxl_chromium"]

@@ -56,6 +56,10 @@ async def test_setup_actions_and_unload(hass, tmp_path):
         "screenshot",
         "record",
         "wait_for_screen",
+        "click",
+        "type_text",
+        "press_key",
+        "scroll",
     }
     assert descriptions[DOMAIN]["open_url"]["fields"]["config_entry_id"][
         "selector"

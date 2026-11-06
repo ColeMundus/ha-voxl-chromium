@@ -39,11 +39,13 @@ class BrowserBackend:
         self.start_url = start_url
         self.lifecycle = threading.RLock()
 
-    def run(self, argv, capture=False):
+    def run(self, argv, capture=False, *, input=None, timeout=10):
         return subprocess.run(
             argv,
+            input=input,
+            encoding="utf-8",
             check=True,
-            timeout=10,
+            timeout=timeout,
             stdout=subprocess.PIPE if capture else subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
             text=True,
@@ -120,6 +122,64 @@ class BrowserBackend:
             self.run(["xdotool", "key", "--clearmodifiers", "ctrl+l"])
             self.run(["xdotool", "type", "--clearmodifiers", "--delay", "0", "--", url])
             self.run(["xdotool", "key", "--clearmodifiers", "Return"])
+
+    def click(self, x, y, button, click_count):
+        with self.lifecycle:
+            self.restore_window()
+            self.move_pointer(x, y)
+            self.run(
+                [
+                    "xdotool",
+                    "click",
+                    "--clearmodifiers",
+                    "--repeat",
+                    str(click_count),
+                    {"left": "1", "middle": "2", "right": "3"}[button],
+                ]
+            )
+
+    def type_text(self, text):
+        with self.lifecycle:
+            self.restore_window()
+            # Zero-delay keymap restoration drops non-ASCII events in Chromium.
+            # Leave time to consume each keysym without touching the clipboard.
+            self.run(
+                ["xdotool", "type", "--clearmodifiers", "--delay", "10", "--file", "-"],
+                input=text,
+                timeout=30,
+            )
+
+    def press_key(self, key):
+        with self.lifecycle:
+            self.restore_window()
+            self.run(["xdotool", "key", "--clearmodifiers", key])
+
+    def move_pointer(self, x, y):
+        width, height = map(
+            int,
+            self.run(["xdotool", "getdisplaygeometry"], capture=True).stdout.split(),
+        )
+        if not (0 <= x < width and 0 <= y < height):
+            raise RequestError(400, "invalid request")
+        # --sync waits for a movement event even when already at the target.
+        # The finite xdotool process flushes its X requests before returning.
+        self.run(["xdotool", "mousemove", str(x), str(y)])
+
+    def scroll(self, direction, steps, x, y):
+        with self.lifecycle:
+            self.restore_window()
+            if x is not None:
+                self.move_pointer(x, y)
+            self.run(
+                [
+                    "xdotool",
+                    "click",
+                    "--clearmodifiers",
+                    "--repeat",
+                    str(steps),
+                    {"up": "4", "down": "5", "left": "6", "right": "7"}[direction],
+                ]
+            )
 
     def fetch(self, path, kind, limit, timeout):
         deadline = time.monotonic() + timeout
@@ -370,6 +430,10 @@ class Handler(BaseHTTPRequestHandler):
             "/health": "GET",
             "/screenshot": "GET",
             "/open_url": "POST",
+            "/click": "POST",
+            "/type_text": "POST",
+            "/press_key": "POST",
+            "/scroll": "POST",
             "/restore_window": "POST",
             "/wait": "POST",
             "/record": "POST",
@@ -389,7 +453,15 @@ class Handler(BaseHTTPRequestHandler):
             return self.reply(400, {"error": "invalid request"})
         gate = (
             self.server.mutation
-            if self.path in ("/open_url", "/restore_window")
+            if self.path
+            in (
+                "/open_url",
+                "/restore_window",
+                "/click",
+                "/type_text",
+                "/press_key",
+                "/scroll",
+            )
             else self.server.captures
         )
         if not gate.acquire(blocking=False):
@@ -403,6 +475,8 @@ class Handler(BaseHTTPRequestHandler):
                 self.path, "application/json"
             )
             self.reply(200, result if result is not None else {"ok": True}, kind)
+        except RequestError:
+            self.reply(400, {"error": "invalid request"})
         except Exception:
             self.reply(502, {"error": "dependency unavailable"})
         finally:
@@ -463,9 +537,51 @@ def integer(value, low, high):
     return value
 
 
+def key_chord(key):
+    if not isinstance(key, str):
+        raise ValueError
+    parts = key.split("+")
+    modifiers, name = parts[:-1], parts[-1]
+    if (
+        len(modifiers) > 3
+        or len(set(modifiers)) != len(modifiers)
+        or any(mod not in ("Ctrl", "Alt", "Shift") for mod in modifiers)
+    ):
+        raise ValueError
+    names = {
+        "Enter": "Return",
+        "Escape": "Escape",
+        "Tab": "Tab",
+        "Space": "space",
+        "Backspace": "BackSpace",
+        "Delete": "Delete",
+        "Home": "Home",
+        "End": "End",
+        "PageUp": "Prior",
+        "PageDown": "Next",
+        "Left": "Left",
+        "Right": "Right",
+        "Up": "Up",
+        "Down": "Down",
+        **{f"F{n}": f"F{n}" for n in range(1, 13)},
+        **{
+            c: c.lower()
+            for c in "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+        },
+    }
+    if name not in names:
+        raise ValueError
+    # Uppercase X keysyms imply Shift; only an explicit Shift modifier should do so.
+    return "+".join([mod.lower() for mod in modifiers] + [names[name]])
+
+
 def validate_request(path, data):
     fields = {
         "/open_url": {"url", "new_tab"},
+        "/click": {"x", "y", "button", "click_count"},
+        "/type_text": {"text"},
+        "/press_key": {"key"},
+        "/scroll": {"direction", "steps", "x", "y"},
         "/restore_window": set(),
         "/wait": {"idle_ms", "timeout_ms", "region"},
         "/record": {"seconds"},
@@ -473,6 +589,38 @@ def validate_request(path, data):
     }
     if not isinstance(data, dict) or data.keys() - fields[path]:
         raise ValueError
+    if path == "/scroll":
+        direction = data.get("direction")
+        if direction not in ("up", "down", "left", "right") or ("x" in data) != (
+            "y" in data
+        ):
+            raise ValueError
+        x, y = None, None
+        if "x" in data:
+            x = integer(data["x"], 0, 16383)
+            y = integer(data["y"], 0, 16383)
+        return direction, integer(data.get("steps", 1), 1, 20), x, y
+    if path == "/press_key":
+        return (key_chord(data.get("key")),)
+    if path == "/type_text":
+        text = data.get("text")
+        if (
+            not isinstance(text, str)
+            or not 1 <= len(text) <= 1024
+            or any(
+                ord(c) < 32 or 127 <= ord(c) <= 159 or 0xD800 <= ord(c) <= 0xDFFF
+                for c in text
+            )
+        ):
+            raise ValueError
+        return (text,)
+    if path == "/click":
+        x = integer(data.get("x"), 0, 16383)
+        y = integer(data.get("y"), 0, 16383)
+        button = data.get("button", "left")
+        if button not in ("left", "right", "middle"):
+            raise ValueError
+        return x, y, button, integer(data.get("click_count", 1), 1, 2)
     if path == "/open_url":
         url = data.get("url")
         if (

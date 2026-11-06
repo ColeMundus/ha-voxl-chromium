@@ -52,6 +52,11 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the exact development commands.
   completed Marketplace/HACS custom-repository installation.
 - Version 0.3.0 closed-browser recovery also passes the disposable-container
   smoke test. Public screenshots show the separate demo VM, not a household HA.
+- Version 0.4.0 native input passes real Chromium checks for all click buttons,
+  double-click, literal accented/CJK/emoji text, key combinations, four scroll
+  directions, repeated pointer coordinates and actual desktop bounds. A separate
+  screenshot-driven random-code fixture also verified observe → click/type →
+  submit → visually confirm success using the native API, without DOM inspection.
 
 Current and historical results are available in the repository's
 [Actions tab](https://github.com/ColeMundus/ha-voxl-chromium/actions).

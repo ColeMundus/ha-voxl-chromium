@@ -64,6 +64,10 @@ use its `config_entry_id`.
 | --- | --- |
 | `voxl_chromium.open_url` | Open an HTTP(S) URL. `new_tab: true` is the default; false navigates the active tab. |
 | `voxl_chromium.restore_window` | Restore/focus Chromium, or reopen it with the existing profile if closed. |
+| `voxl_chromium.click` | Click screenshot-pixel `x`, `y`; `button` is `left` (default), `right` or `middle`, and `click_count` is 1 (default) or 2. |
+| `voxl_chromium.type_text` | Type literal Unicode `text` into the focused field, up to 1024 characters. Control characters and newlines are rejected; submit separately with `press_key`. |
+| `voxl_chromium.press_key` | Send a named key or combination, such as `Enter`, `Escape`, `Tab`, `Ctrl+A` or `Ctrl+Shift+Tab`. |
+| `voxl_chromium.scroll` | Scroll `direction` (`up`, `down`, `left`, `right`), with `steps` from 1 to 20 (default 1). Optional `x`, `y` must be supplied together; otherwise use the current pointer. |
 | `voxl_chromium.screenshot` | Capture the visible desktop and update the last-screenshot image entity; optionally save a PNG. |
 | `voxl_chromium.record` | Record a short desktop clip to an approved MP4 filename. `seconds` is between 1 and 60. |
 | `voxl_chromium.wait_for_screen` | Wait for visual idle, with `idle_ms`, `timeout_ms` and optional `[x, y, width, height]` region. Returns change/timeout information. |
@@ -73,11 +77,39 @@ Chromium's debugging port. URLs with embedded credentials and non-HTTP(S) scheme
 are rejected. These actions share the same browser profile and desktop as every
 Ingress viewer; they are not an isolated automation browser.
 
+Input actions require **both add-on and companion version 0.4.0 or newer**.
+They focus Chromium and serialize with browser open/restore operations. Each
+action is atomic relative to other API input actions, but an entire multi-action
+script is not: avoid overlapping scripts or simultaneous human input.
+
+Coordinates are absolute pixels in the **desktop screenshot**, including browser
+chrome, not the scaled Ingress viewer or CSS page coordinates. Out-of-bounds
+points are rejected against the current desktop dimensions. Resizing or restoring
+a window may move targets; take another screenshot when the layout changes.
+
+Key combinations accept unique `Ctrl`, `Alt`, and `Shift` modifiers plus one
+letter, digit or named key: `Enter`, `Escape`, `Tab`, `Space`, `Backspace`,
+`Delete`, `Home`, `End`, `PageUp`, `PageDown`, arrow keys, and `F1`–`F12`.
+They do not leave keys held down or accept arbitrary xdotool commands.
+
+Text goes to the subprocess on private stdin, not process arguments, and the
+add-on does not log it. Home Assistant automation traces and screenshots can
+still contain entered text; protect those records and avoid embedding secrets
+in scripts. Input has the same powers as an interactive browser user, including
+submitting forms in signed-in sessions. The calling automation/agent must enforce
+confirmation for consequential actions; coordinate validation is not a sandbox.
+
 Screen waits observe pixels, not the page's DOM or network activity. An animated
 page may never settle; a static error page can settle immediately. Use bounded
 timeouts and inspect the result instead of assuming that visual idle means a
 successful login or page load. Fixed desktop dimensions (`resize: false`) make
 captures more predictable when viewers connect from different-sized screens.
+
+For a visual agent, use screenshot → input → bounded wait → screenshot → verify.
+The screenshot action response contains byte counts, not an embedded model image:
+the caller must retrieve the image entity's authenticated image bytes (or the
+private API PNG) and attach them to its vision model. An image entity state alone
+does not provide visual feedback. No agent/model is bundled with the add-on.
 
 ## Example script
 

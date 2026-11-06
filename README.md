@@ -15,7 +15,8 @@ A persistent Chromium browser inside Home Assistant, streamed through
 - Automatic desktop resizing and file transfers.
 - Opens through Home Assistant; no additional published ports.
 - Optional native Home Assistant automation actions: open URLs, restore Chromium,
-  capture screenshots, record clips and wait for screen changes. Install the
+  click, type text, press keys, scroll, capture screenshots, record clips and
+  wait for screen changes. Install the
   companion integration from this **same repository through Marketplace or HACS**, enable
   **Home Assistant actions** in the add-on, then confirm discovery—no hostname or
   token copying. See [automation setup](AUTOMATION.md).
