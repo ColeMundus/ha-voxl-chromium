@@ -4,28 +4,30 @@ The optional companion integration adds native Home Assistant actions for the
 Chromium desktop. It is separate from the add-on: installing an add-on does not
 install code into Home Assistant Core.
 
-## Setup with HACS
+## Setup with Marketplace or HACS
 
 Requires **Home Assistant 2026.10.0 or newer** and the **Voxl Chromium add-on
 0.3.0 or newer** for discovery-based setup.
 
-1. [Open this repository in HACS](https://my.home-assistant.io/redirect/hacs_repository/?owner=ColeMundus&repository=ha-voxl-chromium&category=integration),
-   add it as an **Integration**, and download **Voxl Chromium**. Restart Home
-   Assistant when HACS asks.
+1. Install the companion from `https://github.com/ColeMundus/ha-voxl-chromium`
+   as an **Integration**, then restart Home Assistant:
+   - **HA 2026.11 or newer:** use **Settings → Marketplace → Custom repositories**.
+     Marketplace is built in; connect GitHub if prompted to add a custom repository.
+   - **HA 2026.10:** [open this repository in HACS](https://my.home-assistant.io/redirect/hacs_repository/?owner=ColeMundus&repository=ha-voxl-chromium&category=integration)
+     or use **HACS → ⋮ → Custom repositories**.
 2. In the add-on's **Configuration** tab, enable **Home Assistant actions**
    (`automation_enabled`), save, and restart the add-on.
 3. Open **Settings → Devices & services** and confirm the discovered **Voxl
    Chromium** integration. The add-on supplies the hostname, port and a generated
    credential over Supervisor discovery; there is no token to copy.
 
-If the HACS link does not open, go to **HACS → ⋮ → Custom repositories**, add
-`https://github.com/ColeMundus/ha-voxl-chromium` with type **Integration**, then
-open and download it. The add-on and integration use the **same repository**;
-there is no second GitHub repo to register.
+The add-on and integration use the **same repository**; there is no second
+GitHub repo to register. HACS has been replaced by native Marketplace on
+HA 2026.11+, so do not install legacy HACS on those versions.
 
 An add-on runs in its own container. A custom integration runs inside Home
 Assistant Core. Installing an add-on cannot install a custom integration into
-Core, so HACS installation is a separate one-time step. Discovery makes pairing
+Core, so Marketplace/HACS installation is a separate one-time step. Discovery makes pairing
 simple after the integration code is installed. No configuration-folder mount
 or extra Supervisor/Core API permission is needed.
 

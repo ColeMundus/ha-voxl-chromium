@@ -15,15 +15,16 @@ A persistent Chromium browser inside Home Assistant, streamed through
 - Opens through Home Assistant; no additional published ports.
 - Optional native Home Assistant automation actions: open URLs, restore Chromium,
   capture screenshots, record clips and wait for screen changes. Install the
-  companion integration from this **same repository through HACS**, enable
+  companion integration from this **same repository through Marketplace or HACS**, enable
   **Home Assistant actions** in the add-on, then confirm discovery—no hostname or
   token copying. See [automation setup](AUTOMATION.md).
 
 ## Screenshots
 
-Chromium streamed through Voxl, displaying the public Home Assistant website.
+The **Chromium** sidebar entry opens Voxl inside Home Assistant. This is a real
+demo HAOS installation, not a personal Home Assistant instance.
 
-![Chromium desktop displaying the Home Assistant website](docs/screenshots/browser.jpg)
+![Voxl Chromium running inside Home Assistant with its sidebar visible](docs/screenshots/browser.jpg)
 
 <details>
 <summary>Reopening a closed browser</summary>
