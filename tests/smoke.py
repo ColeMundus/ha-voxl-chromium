@@ -175,7 +175,12 @@ def input_checks(app, base):
         ({"click_count": 2}, "double"),
     ):
         ok("/click", {"x": 700, "y": 220, **body})
-        eventually(lambda counter=counter: int(state().get(counter, 0)) > 0)
+        try:
+            eventually(lambda counter=counter: int(state().get(counter, 0)) > 0)
+        except AssertionError:
+            raise AssertionError(
+                f"Native {counter} acknowledgment missing: {state()}"
+            ) from None
     for direction, axis, positive in (
         ("down", "scroll_y", True),
         ("up", "scroll_y", False),

@@ -3,6 +3,7 @@
 import json
 import select
 import socket
+import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlsplit
 
@@ -10,6 +11,7 @@ PREFIX = "/api/hassio_ingress/smoke-token/"
 STATE = {"typed": "", "clicks": 0, "visits": 0, "previousStorage": None}
 NAVIGATION = {"acks": [], "visible": []}
 INPUT_STATE = {}
+INPUT_LOCK = threading.Lock()
 INPUT_FIXTURE = b"""<!doctype html><meta charset=utf-8>
 <title>Native input fixture</title>
 <style>body{margin:0;width:2400px;height:2400px;background:white;color:black}
@@ -26,9 +28,9 @@ const code=Array.from(crypto.getRandomValues(new Uint8Array(3)),
 v=>v.toString(16).padStart(2,'0')).join('');
 document.querySelector('#challenge').textContent=challengeMode?
 'Enter code: '+code:'Native input test';
-let clicks=0,right=0,middle=0,double=0,submitted=false,timer;
+let clicks=0,right=0,middle=0,double=0,submitted=false,timer,seq=0;
 function report(){fetch('/input_update?'+new URLSearchParams({value:field.value,
-clicks,right,middle,double,submitted,scroll_x:scrollX,scroll_y:scrollY}));}
+clicks,right,middle,double,submitted,seq:++seq,scroll_x:scrollX,scroll_y:scrollY}));}
 field.addEventListener('input',()=>{clearTimeout(timer);timer=setTimeout(report,80)});
 field.addEventListener('click',()=>{clicks++;report()});
 field.addEventListener('keydown',e=>{if(e.key==='Enter'){
@@ -91,18 +93,22 @@ class Proxy(BaseHTTPRequestHandler):
         elif path.path == "/navigation_state":
             self.reply(json.dumps(NAVIGATION).encode(), "application/json")
         elif path.path == "/input_fixture":
-            INPUT_STATE.clear()
+            with INPUT_LOCK:
+                INPUT_STATE.clear()
             self.reply(INPUT_FIXTURE, "text/html; charset=utf-8")
         elif path.path == "/input_update":
-            INPUT_STATE.update(
-                {
-                    k: v[0]
-                    for k, v in parse_qs(path.query, keep_blank_values=True).items()
-                }
-            )
+            snapshot = {
+                k: v[0] for k, v in parse_qs(path.query, keep_blank_values=True).items()
+            }
+            # Concurrent fetches can arrive after a newer dblclick/input report.
+            with INPUT_LOCK:
+                if int(snapshot["seq"]) > int(INPUT_STATE.get("seq", "-1")):
+                    INPUT_STATE.update(snapshot)
             self.reply(b"ok")
         elif path.path == "/input_state":
-            self.reply(json.dumps(INPUT_STATE).encode(), "application/json")
+            with INPUT_LOCK:
+                snapshot = dict(INPUT_STATE)
+            self.reply(json.dumps(snapshot).encode(), "application/json")
         elif path.path == "/typed":
             STATE["typed"] = parse_qs(path.query).get("value", [""])[0]
             self.reply(b"ok")
