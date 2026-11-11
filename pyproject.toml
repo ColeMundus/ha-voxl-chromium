@@ -5,7 +5,7 @@ requires-python = ">=3.11"
 dependencies = []
 
 [dependency-groups]
-dev = ["pytest>=8,<10", "pyyaml>=6,<7", "ruff>=0.14,<1", "playwright>=1.56,<2"]
+dev = ["pytest>=8,<10", "pyyaml>=6,<7", "ruff>=0.17.4,<1", "playwright>=1.56,<2"]
 
 [tool.pytest.ini_options]
 pythonpath = ["voxl_chromium", "."]
