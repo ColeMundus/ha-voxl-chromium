@@ -40,6 +40,13 @@ def test_pyright_config_skips_native_and_integration():
     assert outcome("integration", ["pyrightconfig.json"])[0] == "skipped"
 
 
+def test_hook_config_skips_native_and_integration():
+    files = ["hk.pkl", "scripts/ci_check.py"]
+    assert outcome("native", files)[0] == "skipped"
+    assert outcome("integration", files)[0] == "skipped"
+    assert outcome("unit", files)[0] == "affected"
+
+
 def test_docs_only_skips_native_and_integration_but_not_unit_or_checks():
     files = ["README.md", "docs/screenshots/browser.jpg", "AUTOMATION.md"]
     assert outcome("native", files)[0] == "skipped"

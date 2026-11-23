@@ -47,6 +47,7 @@ KNOWN_TOP = frozenset(
         "custom_components",
         "docs",
         "hacs.json",
+        "hk.pkl",
         "integration_tests",
         "pyproject.toml",
         "pyrightconfig.json",
