@@ -1,8 +1,11 @@
 # syntax=docker/dockerfile:1
-FROM rust:1.100.0-bookworm AS builder
+# builder-apt and runtime-apt are named so main can rebuild them with
+# --no-cache-filter while still reusing the compile layers.
+FROM rust:1.100.0-bookworm AS builder-apt
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates curl clang pkg-config libx264-dev libyuv-dev libopus-dev \
     libpulse-dev npm python3 && rm -rf /var/lib/apt/lists/*
+FROM builder-apt AS builder
 RUN npm install --global esbuild@0.25.11
 # Debian's libyuv-dev omits pkg-config metadata; voxl 0.3.2 requires it.
 RUN mkdir -p /usr/local/lib/pkgconfig \
@@ -23,7 +26,7 @@ RUN git apply --check /build/patches/zip-security.patch \
     && sha256sum target/release/voxl \
     && ls -l target/release/voxl
 
-FROM debian:bookworm-slim
+FROM debian:bookworm-slim AS runtime-apt
 ARG BUILD_VERSION=0.3.0
 LABEL org.opencontainers.image.title="Voxl Chromium for Home Assistant" \
     org.opencontainers.image.source="https://github.com/ColeMundus/ha-voxl-chromium" \
@@ -37,6 +40,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/* \
     && useradd --uid 1000 --create-home --shell /usr/sbin/nologin browser \
     && mkdir -p /data /opt/addon
+FROM runtime-apt
 COPY --from=builder /build/source/target/release/voxl /usr/local/bin/voxl
 COPY --from=builder /build/source/LICENSE /usr/share/doc/voxl/LICENSE
 COPY --from=builder /build/source/Cargo.lock /usr/share/doc/voxl/Cargo.lock

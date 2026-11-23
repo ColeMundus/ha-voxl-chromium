@@ -93,8 +93,24 @@ jobs:
           python-version: '3.11'
           enable-cache: false
       - run: uv sync --locked
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+        with:
+          driver: docker-container
       - name: Build ephemeral source image (never pushed or uploaded)
-        run: docker build -t ha-voxl-chromium:test voxl_chromium
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: voxl_chromium
+          load: true
+          push: false
+          tags: ha-voxl-chromium:test
+          provenance: false
+          cache-from: type=gha,scope=native-${{ matrix.arch }}
+          # A GitHub Actions layer cache is not a registry push. Pull requests
+          # only read. Main and the weekly schedule write, and they rebuild
+          # the apt stages so the vulnerability scan sees current packages.
+          cache-to: ${{ (github.event_name == 'push' || github.event_name == 'schedule') && github.ref == 'refs/heads/main' && format('type=gha,mode=max,scope=native-{0}', matrix.arch) || '' }}
+          pull: ${{ github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'schedule') }}
+          no-cache-filters: ${{ github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'schedule') && 'builder-apt,runtime-apt' || '' }}
       - name: Cache Playwright browser
         uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
         with:
