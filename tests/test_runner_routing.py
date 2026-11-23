@@ -33,7 +33,15 @@ def test_all_other_jobs_use_github_hosted_runners_or_reusable_workflows():
 
 def test_hosted_jobs_need_no_persistent_runner_management():
     definition = workflow()
-    assert "concurrency" not in definition
+    # A new push to a PR cancels that PR's in-progress run. Main, tags,
+    # schedules, dispatch, and the release workflow_call do not cancel.
+    assert definition["concurrency"] == {
+        "group": (
+            "ci-${{ github.workflow }}-"
+            "${{ github.event.pull_request.number || github.ref }}"
+        ),
+        "cancel-in-progress": "${{ github.event_name == 'pull_request' }}",
+    }
     job = definition["jobs"]["container"]
     assert "concurrency" not in job
     text = (ROOT / ".github/workflows/ci.yml").read_text()
