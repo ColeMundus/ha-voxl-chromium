@@ -38,10 +38,26 @@ def test_smoke_installs_only_the_headless_browser_it_uses():
     assert "AS runtime-apt" in dockerfile
 
 
+def test_checks_job_reports_every_static_failure():
+    workflow = yaml.safe_load((ROOT / ".github/workflows/ci.yml").read_text())
+    steps = workflow["jobs"]["checks"]["steps"]
+    for step_id in ("ruff", "ruff-format", "addon", "hassfest", "hacs"):
+        step = next(item for item in steps if item.get("id") == step_id)
+        assert step["continue-on-error"] is True
+    report = next(
+        item for item in steps if item.get("name") == "Report every failed check"
+    )
+    assert report["if"] == "always()"
+    for label in ("ruff check", "ruff format", "addon-linter", "hassfest", "HACS"):
+        assert label in report["run"]
+    python_runs = [step.get("run", "") for step in workflow["jobs"]["python"]["steps"]]
+    assert all("ruff" not in run for run in python_runs)
+
+
 def test_job_budgets_are_tighter_than_the_old_timeouts_and_not_35s():
     workflow = yaml.safe_load((ROOT / ".github/workflows/ci.yml").read_text())
     jobs = workflow["jobs"]
-    assert jobs["metadata"]["timeout-minutes"] == 5
+    assert jobs["checks"]["timeout-minutes"] == 5
     assert jobs["python"]["timeout-minutes"] == 5
     assert jobs["integration"]["timeout-minutes"] == 5
     assert jobs["container"]["timeout-minutes"] == 12
@@ -52,7 +68,7 @@ def test_job_budgets_are_tighter_than_the_old_timeouts_and_not_35s():
         )
         limits[name] = step["env"]["LIMIT"]
         assert step["if"] == "always()"
-    assert limits["metadata"] == "180"
+    assert limits["checks"] == "180"
     assert limits["python"] == "60"
     assert limits["integration"] == "120"
     assert "240" in limits["container"]
