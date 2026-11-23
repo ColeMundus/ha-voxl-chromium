@@ -122,7 +122,9 @@ class Proxy(BaseHTTPRequestHandler):
         elif path.path == "/state":
             self.reply(json.dumps(STATE).encode(), "application/json")
         elif self.path.startswith(PREFIX):
-            self.proxy()
+            # Drill: a real behavior change. Native smoke must go red.
+            self.send_error(500)
+            return
         else:
             self.send_error(404)
 
