@@ -10,6 +10,8 @@ ROOT = Path(__file__).parents[1]
 spec = importlib.util.spec_from_file_location(
     "ci_affected", ROOT / "scripts" / "ci_affected.py"
 )
+if spec is None or spec.loader is None:
+    raise RuntimeError("ci_affected could not be loaded")
 ci_affected = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(ci_affected)
 
