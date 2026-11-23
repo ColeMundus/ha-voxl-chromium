@@ -39,10 +39,10 @@ class BrowserBackend:
         self.start_url = start_url
         self.lifecycle = threading.RLock()
 
-    def run(self, argv, capture=False, *, input=None, timeout=10):
+    def run(self, argv, capture=False, *, stdin=None, timeout=10):
         return subprocess.run(
             argv,
-            input=input,
+            input=stdin,
             encoding="utf-8",
             check=True,
             timeout=timeout,
@@ -145,7 +145,7 @@ class BrowserBackend:
             # Leave time to consume each keysym without touching the clipboard.
             self.run(
                 ["xdotool", "type", "--clearmodifiers", "--delay", "10", "--file", "-"],
-                input=text,
+                stdin=text,
                 timeout=30,
             )
 
