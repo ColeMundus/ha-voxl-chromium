@@ -71,7 +71,7 @@ def test_missing_window_relaunch_is_bounded_and_uses_owned_launcher(monkeypatch)
     launched = []
     backend = control.BrowserBackend(launcher=lambda argv: launched.append(argv))
 
-    def run(argv, capture=False):
+    def run(argv, *, capture=False):
         if argv == ["wmctrl", "-l"]:
             return SimpleNamespace(stdout="0x0123 0 host Browser\n" if launched else "")
         if argv == ["xdotool", "search", "--class", "^Chromium$"]:
@@ -85,7 +85,7 @@ def test_missing_window_relaunch_is_bounded_and_uses_owned_launcher(monkeypatch)
     assert launched[0][-1] == "https://www.home-assistant.io"
     backend.restore_window()
     assert len(launched) == 1
-    backend.open_url("https://example.com", True)
+    backend.open_url("https://example.com", new_tab=True)
     assert len(launched) == 2
     assert launched[-1][-2:] == ["--new-tab", "https://example.com"]
     monkeypatch.setattr(backend, "find_window", lambda: None)
@@ -320,12 +320,12 @@ def test_subprocess_arguments_and_verified_restore(monkeypatch):
     monkeypatch.setattr(control.subprocess, "run", run)
     backend = control.BrowserBackend()
     url = "https://example.com/?q=$(bad);echo"
-    backend.open_url(url, True)
+    backend.open_url(url, new_tab=True)
     assert calls[0][0] == commands(validate_options({}))["chromium"][:-1] + [
         "--new-tab",
         url,
     ]
-    backend.open_url(url, False)
+    backend.open_url(url, new_tab=False)
     argv = [call[0] for call in calls]
     assert ["wmctrl", "-i", "-a", "0x0123"] in argv
     assert ["xdotool", "type", "--clearmodifiers", "--delay", "0", "--", url] in argv

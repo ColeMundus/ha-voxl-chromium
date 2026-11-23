@@ -297,7 +297,11 @@ class X11Display:
         root = lib.XDefaultRootWindow(self._dpy)
         self._clock = lib.XCreateSimpleWindow(self._dpy, root, 0, 0, 1, 1, 0, 0, 0)
         lib.XSelectInput(self._dpy, self._clock, 1 << 22)
-        self._clock_atom = lib.XInternAtom(self._dpy, b"_VOXL_KEYMAP_TIME", False)
+        self._clock_atom = lib.XInternAtom(
+            self._dpy,
+            b"_VOXL_KEYMAP_TIME",
+            False,  # noqa: FBT003 - ctypes only_if_exists
+        )
         self._user_atom = None
 
     def empty_keycodes(self):
@@ -333,7 +337,7 @@ class X11Display:
                 buffer[dst] = mapping[keycode]
         self._lib.XFree(symbols)
         self._lib.XChangeKeyboardMapping(self._dpy, start, per, buffer, count)
-        self._lib.XSync(self._dpy, False)
+        self._lib.XSync(self._dpy, False)  # noqa: FBT003 - ctypes discard flag
         low, high, per, symbols = self._mapping()
         try:
             for keycode, keysym in mapping.items():
@@ -376,7 +380,9 @@ class X11Display:
             window = int(window, 16)
         if self._user_atom is None:
             self._user_atom = self._lib.XInternAtom(
-                self._dpy, b"_NET_WM_USER_TIME", False
+                self._dpy,
+                b"_NET_WM_USER_TIME",
+                False,  # noqa: FBT003 - ctypes only_if_exists
             )
         actual = ctypes.c_ulong()
         fmt = ctypes.c_int()
@@ -441,7 +447,7 @@ class BrowserBackend:
             self.keymap = KeymapSlots(X11Display())
         return self.keymap
 
-    def run(self, argv, capture=False, *, input=None, timeout=10):
+    def run(self, argv, *, capture=False, input=None, timeout=10):
         return subprocess.run(
             argv,
             input=input,
