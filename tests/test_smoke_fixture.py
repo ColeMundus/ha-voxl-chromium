@@ -6,6 +6,8 @@ import threading
 from http.server import ThreadingHTTPServer
 from urllib.parse import urlencode
 
+import pytest
+import smoke
 from ingress_proxy import INPUT_STATE, Proxy
 
 
@@ -43,3 +45,35 @@ def test_input_fixture_does_not_revert_to_an_older_browser_report():
             server.shutdown()
             thread.join(timeout=3)
             INPUT_STATE.clear()
+
+
+class _Page:
+    def __init__(self, results):
+        self.results = list(results)
+        self.urls = []
+
+    def goto(self, url):
+        self.urls.append(url)
+
+    def evaluate(self, script, health):
+        if not self.results:
+            raise AssertionError("fetch called after the scripted results")
+        return self.results.pop(0)
+
+
+def test_application_navigation_waits_for_the_startup_route_replay():
+    page = _Page(["TypeError: Failed to fetch net::ERR_NETWORK_CHANGED", 200])
+    smoke.open_loaded_page(
+        page, "http://127.0.0.1:9/app?x=1", "http://127.0.0.1:9/healthz"
+    )
+    assert page.urls == ["data:text/html,ready", "http://127.0.0.1:9/app?x=1"]
+    assert page.results == []
+
+
+def test_a_real_browser_network_error_is_not_waited_out():
+    page = _Page(["TypeError: Failed to fetch net::ERR_CONNECTION_REFUSED"])
+    with pytest.raises(AssertionError, match="ERR_CONNECTION_REFUSED"):
+        smoke.open_loaded_page(
+            page, "http://127.0.0.1:9/app", "http://127.0.0.1:9/healthz"
+        )
+    assert page.urls == ["data:text/html,ready"]
