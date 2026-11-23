@@ -249,6 +249,7 @@ jobs:
         id: trivy-day
         if: steps.scope.outputs.decision == 'affected'
         run: echo "day=$(date -u +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
+      # The first run on a day saves the database. Later runs restore it.
       - name: Restore vulnerability database
         id: trivy-cache
         if: steps.scope.outputs.decision == 'affected'
