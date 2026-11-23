@@ -23,6 +23,19 @@ def test_smoke_installs_only_the_headless_browser_it_uses():
     assert cache["with"]["key"] == (
         "playwright-${{ runner.os }}-${{ runner.arch }}-1.65.2"
     )
+    build = next(
+        step
+        for step in steps
+        if step.get("name") == "Build ephemeral source image (never pushed or uploaded)"
+    )
+    assert build["uses"].startswith("docker/build-push-action@")
+    assert build["with"]["load"] is True
+    assert build["with"]["push"] is False
+    assert build["with"]["cache-from"].startswith("type=gha,scope=native-")
+    assert "type=gha,mode=max,scope=native-" in build["with"]["cache-to"]
+    dockerfile = (ROOT / "voxl_chromium/Dockerfile").read_text()
+    assert "AS builder-apt" in dockerfile
+    assert "AS runtime-apt" in dockerfile
 
 
 def test_ci_uses_pinned_native_container_for_both_security_gates():
