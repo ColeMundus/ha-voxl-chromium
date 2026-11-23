@@ -414,8 +414,9 @@ def test_every_input_shares_mutation_gate_with_open_and_restore(monkeypatch):
     import threading
     from concurrent.futures import ThreadPoolExecutor
 
-    backend, calls = native_backend(monkeypatch)
-    mutations = INPUT_REQUESTS + [
+    backend, _calls = native_backend(monkeypatch)
+    mutations = [
+        *INPUT_REQUESTS,
         ("/open_url", {"url": "https://example.com"}),
         ("/restore_window", {}),
     ]
@@ -473,7 +474,7 @@ def _xdotool_events(display, text):
     events = []
     for snapshot in display.snapshots:
         burst = []
-        for char in text if len(display.snapshots) == 1 else text:
+        for char in text:
             keysym = control.unicode_keysym(char)
             if keysym not in snapshot and ord(char) not in snapshot:
                 burst.append(("remap", char))

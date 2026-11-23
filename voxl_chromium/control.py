@@ -324,7 +324,7 @@ class X11Display:
     def bind_level0(self, mapping):
         if not mapping:
             return
-        low, high, per, symbols = self._mapping()
+        low, _high, per, symbols = self._mapping()
         start, end = min(mapping), max(mapping)
         count = end - start + 1
         buffer = (ctypes.c_ulong * (count * per))()
@@ -338,7 +338,7 @@ class X11Display:
         self._lib.XFree(symbols)
         self._lib.XChangeKeyboardMapping(self._dpy, start, per, buffer, count)
         self._lib.XSync(self._dpy, False)  # noqa: FBT003 - ctypes discard flag
-        low, high, per, symbols = self._mapping()
+        low, _high, per, symbols = self._mapping()
         try:
             for keycode, keysym in mapping.items():
                 if int(symbols[(keycode - low) * per]) != keysym:
@@ -493,7 +493,7 @@ class BrowserBackend:
         with self.lifecycle:
             window = self.find_window()
             if window is None:
-                self.launcher(self.browser + [self.start_url])
+                self.launcher([*self.browser, self.start_url])
                 deadline = time.monotonic() + WINDOW_TIMEOUT
                 while window is None and time.monotonic() < deadline:
                     time.sleep(0.1)
@@ -518,7 +518,7 @@ class BrowserBackend:
     def _open_url(self, url, new_tab):
         if new_tab:
             # The runtime owns every process, including profile-forwarding launchers.
-            self.launcher(self.browser + ["--new-tab", url])
+            self.launcher([*self.browser, "--new-tab", url])
             deadline = time.monotonic() + WINDOW_TIMEOUT
             while self.find_window() is None and time.monotonic() < deadline:
                 time.sleep(0.1)
