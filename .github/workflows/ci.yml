@@ -264,12 +264,27 @@ jobs:
       - name: Prepare pinned vulnerability scanner
         if: steps.scope.outputs.decision == 'affected'
         run: docker build --pull -t "$TRIVY_IMAGE" ci
+      - name: Trivy database day
+        id: trivy-day
+        if: steps.scope.outputs.decision == 'affected'
+        run: echo "day=$(date -u +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
+      # The first run on a day saves the database. Later runs restore it.
+      - name: Restore vulnerability database
+        id: trivy-cache
+        if: steps.scope.outputs.decision == 'affected'
+        uses: actions/cache/restore@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: ${{ runner.temp }}/trivy-db
+          key: trivy-db-${{ matrix.arch }}-${{ steps.trivy-day.outputs.day }}
+          restore-keys: |
+            trivy-db-${{ matrix.arch }}-
       - name: Scan fixable high and critical container vulnerabilities
         if: steps.scope.outputs.decision == 'affected'
         run: |
+          mkdir -p "${{ runner.temp }}/trivy-db"
           docker run --rm \
             -v /var/run/docker.sock:/var/run/docker.sock:ro \
-            -v voxl-trivy-cache:/root/.cache/ \
+            -v "${{ runner.temp }}/trivy-db:/root/.cache/" \
             "$TRIVY_IMAGE" image --scanners vuln \
             --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 \
             --timeout 15m ha-voxl-chromium:test
@@ -285,10 +300,24 @@ jobs:
         run: |
           docker run --rm \
             -v "$PWD/artifacts/dependency-scan:/source:ro" \
-            -v voxl-trivy-cache:/root/.cache/ \
+            -v "${{ runner.temp }}/trivy-db:/root/.cache/" \
             "$TRIVY_IMAGE" fs --scanners vuln \
             --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 \
             --timeout 15m /source
+      - name: Make the vulnerability database readable
+        if: steps.scope.outputs.decision == 'affected' && steps.trivy-cache.outputs.cache-hit != 'true'
+        run: sudo chmod -R a+rX "${{ runner.temp }}/trivy-db"
+      - name: Save vulnerability database
+        if: >-
+          steps.scope.outputs.decision == 'affected' &&
+          steps.trivy-cache.outputs.cache-hit != 'true' &&
+          (github.event_name == 'pull_request' ||
+           (github.ref == 'refs/heads/main' &&
+            (github.event_name == 'push' || github.event_name == 'schedule')))
+        uses: actions/cache/save@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: ${{ runner.temp }}/trivy-db
+          key: ${{ steps.trivy-cache.outputs.cache-primary-key }}
       - name: Enforce time budget
         if: always()
         env:

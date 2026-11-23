@@ -94,6 +94,11 @@ def test_ci_uses_pinned_native_container_for_both_security_gates():
         ):
             assert required in command
         assert not step.get("continue-on-error", False)
+        assert "trivy-db:/root/.cache/" in command
+        assert "voxl-trivy-cache" not in command
+    text = (ROOT / ".github/workflows/ci.yml").read_text()
+    assert 'sudo chmod -R a+rX "${{ runner.temp }}/trivy-db"' in text
+    assert "key: trivy-db-${{ matrix.arch }}-${{ steps.trivy-day.outputs.day }}" in text
     scanner = (ROOT / "ci/Dockerfile").read_text()
     assert re.search(r"FROM aquasec/trivy:\d+\.\d+\.\d+@sha256:[0-9a-f]{64}", scanner)
     updates = yaml.safe_load((ROOT / ".github/dependabot.yml").read_text())["updates"]
