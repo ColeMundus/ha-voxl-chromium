@@ -25,6 +25,15 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - name: Path selection
+        env:
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
+          AFFECTED_BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          if [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]]; then
+            git fetch --no-tags --depth=1 origin "${AFFECTED_BASE}"
+          fi
+          python3 scripts/ci_affected.py checks
       - uses: frenck/action-addon-linter@d51677290aef26cdfc835271dd3c7343ce502809 # v2.21.2
         with:
           path: ./voxl_chromium
@@ -53,6 +62,15 @@ jobs:
           python-version: '3.11'
           enable-cache: false
       - run: uv sync --locked
+      - id: scope
+        env:
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
+          AFFECTED_BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          if [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]]; then
+            git fetch --no-tags --depth=1 origin "${AFFECTED_BASE}"
+          fi
+          uv run python scripts/ci_affected.py unit | tee -a "$GITHUB_OUTPUT"
       - run: uv run pytest
       - run: uv run ruff check .
       - run: uv run ruff format --check .
@@ -70,7 +88,17 @@ jobs:
           python-version: '3.14'
           enable-cache: false
       - run: uv sync --locked --project integration_tests
-      - run: uv run --project integration_tests pytest integration_tests
+      - id: scope
+        env:
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
+          AFFECTED_BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          if [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]]; then
+            git fetch --no-tags --depth=1 origin "${AFFECTED_BASE}"
+          fi
+          uv run python scripts/ci_affected.py integration | tee -a "$GITHUB_OUTPUT"
+      - if: steps.scope.outputs.decision == 'affected'
+        run: uv run --project integration_tests pytest integration_tests
 
   container:
     name: Native build and smoke (${{ matrix.arch }})
@@ -93,15 +121,29 @@ jobs:
           python-version: '3.11'
           enable-cache: false
       - run: uv sync --locked
+      - id: scope
+        env:
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
+          AFFECTED_BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          if [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]]; then
+            git fetch --no-tags --depth=1 origin "${AFFECTED_BASE}"
+          fi
+          uv run python scripts/ci_affected.py native | tee -a "$GITHUB_OUTPUT"
       - name: Build ephemeral source image (never pushed or uploaded)
+        if: steps.scope.outputs.decision == 'affected'
         run: docker build -t ha-voxl-chromium:test voxl_chromium
       - name: Install browser for smoke tests
+        if: steps.scope.outputs.decision == 'affected'
         run: uv run playwright install --with-deps --only-shell chromium
       - name: Exercise Chromium and ingress over the running container
+        if: steps.scope.outputs.decision == 'affected'
         run: uv run python tests/smoke.py --image ha-voxl-chromium:test
       - name: Prepare pinned vulnerability scanner
+        if: steps.scope.outputs.decision == 'affected'
         run: docker build --pull -t "$TRIVY_IMAGE" ci
       - name: Scan fixable high and critical container vulnerabilities
+        if: steps.scope.outputs.decision == 'affected'
         run: |
           docker run --rm \
             -v /var/run/docker.sock:/var/run/docker.sock:ro \
@@ -110,12 +152,14 @@ jobs:
             --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 \
             --timeout 15m ha-voxl-chromium:test
       - name: Collect the effective patched Rust dependency lockfile
+        if: steps.scope.outputs.decision == 'affected'
         run: |
           mkdir -p artifacts/dependency-scan
           id=$(docker create ha-voxl-chromium:test)
           trap 'docker rm "$id"' EXIT
           docker cp "$id:/usr/share/doc/voxl/Cargo.lock" artifacts/dependency-scan/Cargo.lock
       - name: Scan the actual Rust dependencies, not just OS packages
+        if: steps.scope.outputs.decision == 'affected'
         run: |
           docker run --rm \
             -v "$PWD/artifacts/dependency-scan:/source:ro" \
