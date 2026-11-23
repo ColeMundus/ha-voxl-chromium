@@ -23,6 +23,9 @@ from playwright.sync_api import sync_playwright
 PREFIX = "/api/hassio_ingress/smoke-token/"
 # Deliberately public, synthetic test canary; never use as a deployment credential.
 AUTOMATION_TOKEN = "synthetic-smoke-automation-canary-not-a-real-secret-0123456789"
+INPUT_LITERAL = "héllo 世界🙂 '-- $(printf ignored)"
+# More than eight adjacent CJK and emoji characters, past one scratch keycode.
+LONG_INPUT_LITERAL = "漢字日本語🙂😊🚀✨🎉世界"
 
 # The credential travels on stdin, not docker's argv or failure diagnostics.
 API_CLIENT = """
@@ -161,12 +164,23 @@ def input_checks(app, base):
     ok("/click", {"x": 160, "y": 220})
     eventually(lambda: int(state().get("clicks", 0)) > 0)
     ok("/press_key", {"key": "Ctrl+A"})
-    literal = "héllo 世界🙂 '-- $(printf ignored)"
+    literal = INPUT_LITERAL
     ok("/type_text", {"text": literal})
     try:
         eventually(lambda: state().get("value") == literal, timeout=5)
     except AssertionError:
         raise AssertionError(f"Synthetic input mismatch: {state()}") from None
+    ok("/press_key", {"key": "Ctrl+A"})
+    ok("/press_key", {"key": "Backspace"})
+    deadline = time.monotonic() + 5
+    while state().get("value") != "" and time.monotonic() < deadline:
+        time.sleep(0.05)
+    assert state().get("value") == "", state()
+    ok("/type_text", {"text": LONG_INPUT_LITERAL})
+    try:
+        eventually(lambda: state().get("value") == LONG_INPUT_LITERAL, timeout=5)
+    except AssertionError:
+        raise AssertionError(f"Long synthetic input mismatch: {state()}") from None
     ok("/press_key", {"key": "Enter"})
     eventually(lambda: state().get("submitted") == "true")
     for body, counter in (
@@ -198,7 +212,9 @@ def input_checks(app, base):
     ok("/scroll", {"direction": "down"})
     eventually(lambda: int(state().get("scroll_y", 0)) > 0)
     ok("/press_key", {"key": "Ctrl+W"})
-    assert literal not in docker("logs", app)
+    logs = docker("logs", app)
+    assert literal not in logs
+    assert LONG_INPUT_LITERAL not in logs
     print(
         "PASS: native click/buttons/double-click, literal Unicode input, "
         "keys, scrolling and pixel bounds"
@@ -726,7 +742,7 @@ def run_type_stress(image, iterations):
     Prints TYPE_STRESS iterations/failures/rate. Returns 0 only when every
     iteration matches the literal within the same 5s bound as the smoke check.
     """
-    literal = "héllo 世界🙂 '-- $(printf ignored)"
+    literal = INPUT_LITERAL
     suffix = uuid.uuid4().hex[:10]
     network, app, proxy = (f"voxl-{suffix}-{x}" for x in ("net", "app", "proxy"))
     artifacts = Path("artifacts")
@@ -811,7 +827,10 @@ def run_type_stress(image, iterations):
                     time.sleep(0.05)
                 else:
                     failures.append(index)
-                    print(f"TYPE_STRESS miss {index}: clear left {cleared!r}", flush=True)
+                    print(
+                        f"TYPE_STRESS miss {index}: clear left {cleared!r}",
+                        flush=True,
+                    )
                     continue
                 ok("/type_text", {"text": literal})
                 deadline = time.monotonic() + 5

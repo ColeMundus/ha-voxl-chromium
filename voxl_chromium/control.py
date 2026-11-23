@@ -1,9 +1,11 @@
 """Private authenticated automation boundary; deliberately no access logging."""
 
+import ctypes
 import hmac
 import http.client
 import json
 import os
+import select
 import socket
 import socketserver
 import subprocess
@@ -21,6 +23,399 @@ BODY_TIMEOUT = 5
 HEADER_TIMEOUT = 5
 WINDOW_TIMEOUT = 8
 LOCAL_SOCKET = "/tmp/browser-runtime/browser.sock"
+_X_ERROR_HANDLER = None
+
+
+def unicode_keysym(char):
+    """Keysym xdotool looks up when a character is not already in its map."""
+    codepoint = ord(char)
+    if codepoint < 0x100:
+        return codepoint
+    return 0x01000000 + codepoint
+
+
+def x_time_after(later, earlier):
+    elapsed = (later - earlier) & 0xFFFFFFFF
+    return 0 < elapsed < 0x80000000
+
+
+class KeymapSlots:
+    """Bind unmapped characters once, and keep that map stable while typing.
+
+    xdotool types a missing character by pointing one scratch keycode at it and
+    clearing the keycode before the client reads the key. Prebinding every
+    missing character means xdotool never touches that scratch keycode. A slot
+    is reused only after the browser's user time has moved past the keys that
+    used it.
+    """
+
+    def __init__(self, display, ack_timeout=5):
+        self.display = display
+        self.ack_timeout = ack_timeout
+        self.owned = {}
+        self.pending = {}
+        self.pool = None
+        self.trace = []
+
+    def chunks(self, text):
+        self._ensure_pool()
+        external = self._external_keysyms()
+        chunks = []
+        current = []
+        occupants = set()
+        for char in text:
+            codepoint = ord(char)
+            if not self._in_map(char, external):
+                if codepoint not in occupants and (
+                    not self.pool or len(occupants) >= len(self.pool)
+                ):
+                    if not current:
+                        raise RuntimeError("no keymap slots for unmapped character")
+                    chunks.append("".join(current))
+                    current = []
+                    occupants = set()
+                occupants.add(codepoint)
+            current.append(char)
+        if current:
+            chunks.append("".join(current))
+        return chunks or [""]
+
+    def _external_keysyms(self):
+        mapped = set(self.display.mapped_keysyms())
+        for codepoint in self.owned:
+            mapped.discard(unicode_keysym(chr(codepoint)))
+            mapped.discard(codepoint)
+        return mapped
+
+    def arm(self, text, window):
+        """Bind any character in text that the server cannot type yet.
+
+        Returns True when the map changed and the caller must wait until the
+        browser has observed that change before sending keys.
+        """
+        self._ensure_pool()
+        mapped = self.display.mapped_keysyms()
+        needed = []
+        seen = set()
+        for char in text:
+            codepoint = ord(char)
+            if codepoint in seen or self._satisfied(char, mapped):
+                continue
+            seen.add(codepoint)
+            needed.append(char)
+        if not needed:
+            return False
+        if len(needed) > len(self.pool):
+            raise RuntimeError("type_text chunk exceeds keymap slots")
+        used = {ord(char) for char in text}
+        free = [keycode for keycode in self.pool if keycode not in self.owned.values()]
+        reusable = [
+            keycode
+            for codepoint, keycode in self.owned.items()
+            if codepoint not in used
+        ]
+        mapping = {}
+        for char in needed:
+            if free:
+                keycode = free.pop(0)
+            elif reusable:
+                keycode = reusable.pop(0)
+                self._wait(keycode, window)
+                for codepoint, owner in list(self.owned.items()):
+                    if owner == keycode:
+                        del self.owned[codepoint]
+            else:
+                raise RuntimeError("type_text chunk exceeds keymap slots")
+            mapping[keycode] = unicode_keysym(char)
+            self.owned[ord(char)] = keycode
+        self.trace.append(("bind", dict(mapping)))
+        self.display.bind_level0(mapping)
+        return True
+
+    def stamp(self, window):
+        return self.display.server_time(window)
+
+    def wait_for(self, window, stamps):
+        self._wait_until(window, stamps)
+
+    def note_burst(self, text, stamp):
+        for char in dict.fromkeys(text):
+            keycode = self.owned.get(ord(char))
+            if keycode is not None:
+                self.pending[keycode] = stamp
+
+    def _wait(self, keycode, window):
+        stamp = self.pending.get(keycode)
+        if stamp is None:
+            return
+        self.trace.append(("wait", keycode))
+        self._wait_until(window, (stamp,))
+        self.pending.pop(keycode, None)
+
+    def _wait_until(self, window, stamps):
+        deadline = time.monotonic() + self.ack_timeout
+        while True:
+            user_time = self.display.user_time(window)
+            if user_time is not None and all(
+                x_time_after(user_time, stamp) for stamp in stamps
+            ):
+                return
+            if time.monotonic() >= deadline:
+                raise RuntimeError("keymap slot still awaiting browser acknowledgment")
+            time.sleep(0.01)
+
+    def _satisfied(self, char, mapped):
+        return self._in_map(char, mapped)
+
+    def _in_map(self, char, mapped):
+        return unicode_keysym(char) in mapped or ord(char) in mapped
+
+    def _ensure_pool(self):
+        if self.pool is None:
+            self.pool = list(self.display.empty_keycodes())
+
+
+class _XPropertyEvent(ctypes.Structure):
+    _fields_ = [
+        ("type", ctypes.c_int),
+        ("serial", ctypes.c_ulong),
+        ("send_event", ctypes.c_int),
+        ("display", ctypes.c_void_p),
+        ("window", ctypes.c_ulong),
+        ("atom", ctypes.c_ulong),
+        ("time", ctypes.c_ulong),
+        ("state", ctypes.c_int),
+    ]
+
+
+class _XErrorEvent(ctypes.Structure):
+    _fields_ = [
+        ("type", ctypes.c_int),
+        ("display", ctypes.c_void_p),
+        ("resourceid", ctypes.c_ulong),
+        ("serial", ctypes.c_ulong),
+        ("error_code", ctypes.c_ubyte),
+        ("request_code", ctypes.c_ubyte),
+        ("minor_code", ctypes.c_ubyte),
+    ]
+
+
+class X11Display:
+    """Xlib keyboard map used to prebind characters before xdotool runs."""
+
+    def __init__(self, name=None):
+        self.name = name
+        self._lib = ctypes.CDLL("libX11.so.6")
+        lib = self._lib
+        lib.XInitThreads.restype = ctypes.c_int
+        lib.XOpenDisplay.restype = ctypes.c_void_p
+        lib.XOpenDisplay.argtypes = [ctypes.c_char_p]
+        lib.XDefaultRootWindow.restype = ctypes.c_ulong
+        lib.XDefaultRootWindow.argtypes = [ctypes.c_void_p]
+        lib.XCreateSimpleWindow.restype = ctypes.c_ulong
+        lib.XCreateSimpleWindow.argtypes = [
+            ctypes.c_void_p,
+            ctypes.c_ulong,
+            ctypes.c_int,
+            ctypes.c_int,
+            ctypes.c_uint,
+            ctypes.c_uint,
+            ctypes.c_uint,
+            ctypes.c_ulong,
+            ctypes.c_ulong,
+        ]
+        lib.XSelectInput.argtypes = [ctypes.c_void_p, ctypes.c_ulong, ctypes.c_long]
+        lib.XInternAtom.restype = ctypes.c_ulong
+        lib.XInternAtom.argtypes = [ctypes.c_void_p, ctypes.c_char_p, ctypes.c_int]
+        lib.XChangeProperty.argtypes = [
+            ctypes.c_void_p,
+            ctypes.c_ulong,
+            ctypes.c_ulong,
+            ctypes.c_ulong,
+            ctypes.c_int,
+            ctypes.c_int,
+            ctypes.c_void_p,
+            ctypes.c_int,
+        ]
+        lib.XFlush.argtypes = [ctypes.c_void_p]
+        lib.XSync.argtypes = [ctypes.c_void_p, ctypes.c_int]
+        lib.XConnectionNumber.restype = ctypes.c_int
+        lib.XConnectionNumber.argtypes = [ctypes.c_void_p]
+        lib.XPending.restype = ctypes.c_int
+        lib.XPending.argtypes = [ctypes.c_void_p]
+        lib.XNextEvent.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
+        lib.XDisplayKeycodes.argtypes = [
+            ctypes.c_void_p,
+            ctypes.POINTER(ctypes.c_int),
+            ctypes.POINTER(ctypes.c_int),
+        ]
+        lib.XGetKeyboardMapping.restype = ctypes.POINTER(ctypes.c_ulong)
+        lib.XGetKeyboardMapping.argtypes = [
+            ctypes.c_void_p,
+            ctypes.c_int,
+            ctypes.c_int,
+            ctypes.POINTER(ctypes.c_int),
+        ]
+        lib.XChangeKeyboardMapping.argtypes = [
+            ctypes.c_void_p,
+            ctypes.c_int,
+            ctypes.c_int,
+            ctypes.POINTER(ctypes.c_ulong),
+            ctypes.c_int,
+        ]
+        lib.XGetWindowProperty.argtypes = [
+            ctypes.c_void_p,
+            ctypes.c_ulong,
+            ctypes.c_ulong,
+            ctypes.c_long,
+            ctypes.c_long,
+            ctypes.c_int,
+            ctypes.c_ulong,
+            ctypes.POINTER(ctypes.c_ulong),
+            ctypes.POINTER(ctypes.c_int),
+            ctypes.POINTER(ctypes.c_ulong),
+            ctypes.POINTER(ctypes.c_ulong),
+            ctypes.POINTER(ctypes.POINTER(ctypes.c_ubyte)),
+        ]
+        lib.XFree.argtypes = [ctypes.c_void_p]
+        lib.XSetErrorHandler.restype = ctypes.c_void_p
+        global _X_ERROR_HANDLER
+        if _X_ERROR_HANDLER is None:
+            prototype = ctypes.CFUNCTYPE(ctypes.c_int, ctypes.c_void_p, ctypes.c_void_p)
+
+            def _ignore(_display, _event):
+                return 0
+
+            _X_ERROR_HANDLER = prototype(_ignore)
+            lib.XSetErrorHandler(_X_ERROR_HANDLER)
+        lib.XInitThreads()
+        opened = lib.XOpenDisplay(None if name is None else name.encode())
+        if not opened:
+            raise RuntimeError("browser unavailable")
+        self._dpy = opened
+        root = lib.XDefaultRootWindow(self._dpy)
+        self._clock = lib.XCreateSimpleWindow(self._dpy, root, 0, 0, 1, 1, 0, 0, 0)
+        lib.XSelectInput(self._dpy, self._clock, 1 << 22)
+        self._clock_atom = lib.XInternAtom(self._dpy, b"_VOXL_KEYMAP_TIME", False)
+        self._user_atom = None
+
+    def empty_keycodes(self):
+        low, high, per, symbols = self._mapping()
+        empty = []
+        for keycode in range(low, high + 1):
+            base = (keycode - low) * per
+            if all(int(symbols[base + level]) == 0 for level in range(per)):
+                empty.append(keycode)
+        self._lib.XFree(symbols)
+        return empty
+
+    def mapped_keysyms(self):
+        low, high, per, symbols = self._mapping()
+        found = {int(symbols[index]) for index in range((high - low + 1) * per)}
+        found.discard(0)
+        self._lib.XFree(symbols)
+        return found
+
+    def bind_level0(self, mapping):
+        if not mapping:
+            return
+        low, high, per, symbols = self._mapping()
+        start, end = min(mapping), max(mapping)
+        count = end - start + 1
+        buffer = (ctypes.c_ulong * (count * per))()
+        for keycode in range(start, end + 1):
+            src = (keycode - low) * per
+            dst = (keycode - start) * per
+            for level in range(per):
+                buffer[dst + level] = symbols[src + level]
+            if keycode in mapping:
+                buffer[dst] = mapping[keycode]
+        self._lib.XFree(symbols)
+        self._lib.XChangeKeyboardMapping(self._dpy, start, per, buffer, count)
+        self._lib.XSync(self._dpy, False)
+        low, high, per, symbols = self._mapping()
+        try:
+            for keycode, keysym in mapping.items():
+                if int(symbols[(keycode - low) * per]) != keysym:
+                    raise RuntimeError("keymap update was not accepted")
+        finally:
+            self._lib.XFree(symbols)
+
+    def server_time(self, window):
+        del window
+        event = (ctypes.c_char * 256)()
+        self._lib.XChangeProperty(
+            self._dpy,
+            self._clock,
+            self._clock_atom,
+            31,
+            8,
+            2,
+            None,
+            0,
+        )
+        self._lib.XFlush(self._dpy)
+        deadline = time.monotonic() + 1
+        while time.monotonic() < deadline:
+            while self._lib.XPending(self._dpy):
+                self._lib.XNextEvent(self._dpy, event)
+                parsed = _XPropertyEvent.from_buffer_copy(event)
+                if parsed.type == 28 and parsed.atom == self._clock_atom:
+                    return int(parsed.time) & 0xFFFFFFFF
+            remaining = deadline - time.monotonic()
+            readable, _, _ = select.select(
+                [self._lib.XConnectionNumber(self._dpy)], [], [], max(0, remaining)
+            )
+            if not readable and not self._lib.XPending(self._dpy):
+                break
+        raise RuntimeError("X server did not answer a time request")
+
+    def user_time(self, window):
+        if isinstance(window, str):
+            window = int(window, 16)
+        if self._user_atom is None:
+            self._user_atom = self._lib.XInternAtom(
+                self._dpy, b"_NET_WM_USER_TIME", False
+            )
+        actual = ctypes.c_ulong()
+        fmt = ctypes.c_int()
+        count = ctypes.c_ulong()
+        remaining = ctypes.c_ulong()
+        data = ctypes.POINTER(ctypes.c_ubyte)()
+        self._lib.XGetWindowProperty(
+            self._dpy,
+            window,
+            self._user_atom,
+            0,
+            1,
+            0,
+            0,
+            ctypes.byref(actual),
+            ctypes.byref(fmt),
+            ctypes.byref(count),
+            ctypes.byref(remaining),
+            ctypes.byref(data),
+        )
+        if not data or fmt.value != 32 or not count.value:
+            if data:
+                self._lib.XFree(data)
+            return None
+        try:
+            value = int(ctypes.cast(data, ctypes.POINTER(ctypes.c_ulong))[0])
+            return value & 0xFFFFFFFF
+        finally:
+            self._lib.XFree(data)
+
+    def _mapping(self):
+        low, high = ctypes.c_int(), ctypes.c_int()
+        self._lib.XDisplayKeycodes(self._dpy, ctypes.byref(low), ctypes.byref(high))
+        per = ctypes.c_int()
+        symbols = self._lib.XGetKeyboardMapping(
+            self._dpy, low.value, high.value - low.value + 1, ctypes.byref(per)
+        )
+        if not symbols:
+            raise RuntimeError("browser unavailable")
+        return low.value, high.value, per.value, symbols
 
 
 class BrowserBackend:
@@ -38,6 +433,12 @@ class BrowserBackend:
         self.launcher = launcher or self.run
         self.start_url = start_url
         self.lifecycle = threading.RLock()
+        self.keymap = None
+
+    def _keymap(self):
+        if self.keymap is None:
+            self.keymap = KeymapSlots(X11Display())
+        return self.keymap
 
     def run(self, argv, capture=False, *, input=None, timeout=10):
         return subprocess.run(
@@ -140,14 +541,32 @@ class BrowserBackend:
 
     def type_text(self, text):
         with self.lifecycle:
-            self.restore_window()
-            # Zero-delay keymap restoration drops non-ASCII events in Chromium.
-            # Leave time to consume each keysym without touching the clipboard.
-            self.run(
-                ["xdotool", "type", "--clearmodifiers", "--delay", "10", "--file", "-"],
-                input=text,
-                timeout=30,
-            )
+            window = self.restore_window()
+            keymap = self._keymap()
+            for chunk in keymap.chunks(text):
+                if keymap.arm(chunk, window):
+                    # Shift does not insert text. Its user-time update is proof
+                    # the browser has read the keymap written above.
+                    before = keymap.display.user_time(window)
+                    stamp = keymap.stamp(window)
+                    self.run(["xdotool", "key", "--clearmodifiers", "shift"])
+                    stamps = [stamp] if before is None else (stamp, before)
+                    keymap.wait_for(window, stamps)
+                burst = keymap.stamp(window)
+                self.run(
+                    [
+                        "xdotool",
+                        "type",
+                        "--clearmodifiers",
+                        "--delay",
+                        "0",
+                        "--file",
+                        "-",
+                    ],
+                    input=chunk,
+                    timeout=30,
+                )
+                keymap.note_burst(chunk, burst)
 
     def press_key(self, key):
         with self.lifecycle:
