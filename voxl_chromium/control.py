@@ -721,7 +721,7 @@ class LocalRestoreHandler(socketserver.StreamRequestHandler):
         try:
             self.server.backend.restore_window()
             self.wfile.write(b"OK")
-        except Exception:
+        except Exception:  # noqa: BLE001 - never leak a restore traceback
             pass
         finally:
             self.server.lifecycle.release()
@@ -897,7 +897,7 @@ class Handler(BaseHTTPRequestHandler):
             body = result if result is not None else {"ok": True}
         except RequestError:
             status, body, kind = 400, {"error": "invalid request"}, "application/json"
-        except Exception:
+        except Exception:  # noqa: BLE001 - never leak request data
             status, body, kind = (
                 502,
                 {"error": "dependency unavailable"},

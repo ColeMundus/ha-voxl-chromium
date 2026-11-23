@@ -185,7 +185,7 @@ def main():
         client = SupervisorClient(credentials["supervisor_token"])
         retry_publish(lambda: publish(client, credentials["token"]), stopped)
         return 0
-    except Exception:
+    except Exception:  # noqa: BLE001 - discovery must not stop the desktop
         print(
             "Optional Supervisor discovery unavailable; desktop remains running",
             flush=True,
