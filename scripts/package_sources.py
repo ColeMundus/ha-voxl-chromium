@@ -52,7 +52,10 @@ def package_sources(
         member = source.getmember(f"voxl-{upstream_commit}/Cargo.lock")
         if not member.isfile() or member.size > 2 * 1024 * 1024:
             raise SystemExit("Unexpected upstream Cargo.lock")
-        (dist / "upstream-Cargo.lock").write_bytes(source.extractfile(member).read())
+        extracted = source.extractfile(member)
+        if extracted is None:
+            raise SystemExit("Unexpected upstream Cargo.lock")
+        (dist / "upstream-Cargo.lock").write_bytes(extracted.read())
     (dist / "source-manifest.json").write_text(
         json.dumps(
             {

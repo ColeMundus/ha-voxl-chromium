@@ -10,6 +10,8 @@ ROOT = Path(__file__).parents[1]
 spec = importlib.util.spec_from_file_location(
     "ci_affected", ROOT / "scripts" / "ci_affected.py"
 )
+if spec is None or spec.loader is None:
+    raise RuntimeError("ci_affected could not be loaded")
 ci_affected = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(ci_affected)
 
@@ -31,6 +33,11 @@ def test_known_top_level_paths_match_the_tree():
 def test_non_pull_requests_run_every_job(event):
     assert outcome("native", ["README.md"], event)[0] == "affected"
     assert outcome("integration", ["README.md"], event)[0] == "affected"
+
+
+def test_pyright_config_skips_native_and_integration():
+    assert outcome("native", ["pyrightconfig.json"])[0] == "skipped"
+    assert outcome("integration", ["pyrightconfig.json"])[0] == "skipped"
 
 
 def test_docs_only_skips_native_and_integration_but_not_unit_or_checks():

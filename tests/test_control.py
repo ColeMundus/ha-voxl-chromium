@@ -51,6 +51,9 @@ class Backend:
     def restore_window(self):
         self.calls.append(("restore",))
 
+    def type_text(self, text):
+        self.calls.append(("type_text", text))
+
     def screenshot(self):
         return b"\x89PNG\r\n\x1a\nfixture"
 
@@ -251,8 +254,8 @@ def test_backend_proxies_bounded_binary_and_validated_wait(monkeypatch):
     calls = []
 
     class Upstream(BaseHTTPRequestHandler):
-        def log_message(self, *args):
-            pass
+        def log_message(self, format: str, *args: object) -> None:
+            return
 
         def do_GET(self):
             calls.append(self.path)
@@ -580,8 +583,8 @@ def test_upstream_errors_and_invalid_payloads_are_sanitized(
     import control
 
     class Upstream(BaseHTTPRequestHandler):
-        def log_message(self, *args):
-            pass
+        def log_message(self, format: str, *args: object) -> None:
+            return
 
         def do_GET(self):
             self.send_response(status)

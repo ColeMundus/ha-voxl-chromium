@@ -99,6 +99,10 @@ jobs:
           uv run python scripts/ci_affected.py integration | tee -a "$GITHUB_OUTPUT"
       - if: steps.scope.outputs.decision == 'affected'
         run: uv run --project integration_tests pytest integration_tests
+      - name: Typecheck with ty
+        run: uv run --project integration_tests ty check
+      - name: List pyright diagnostics ty does not report
+        run: uv run --project integration_tests python scripts/typecheck_gap.py
 
   container:
     name: Native build and smoke (${{ matrix.arch }})

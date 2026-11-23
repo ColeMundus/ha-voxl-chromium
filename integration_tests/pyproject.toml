@@ -18,4 +18,7 @@ addopts = "-q"
 [dependency-groups]
 dev = [
     "pytest-randomly>=5.1.0",
+    "playwright>=1.65.2",
+    "pyright>=1.1.414",
+    "ty==0.0.108",
 ]

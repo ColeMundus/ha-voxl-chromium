@@ -34,9 +34,10 @@ class SupervisorClient:
         self.base = urlsplit(base)
 
     def request(self, method, path, data=None):
-        connection = http.client.HTTPConnection(
-            self.base.hostname, self.base.port, timeout=3
-        )
+        host = self.base.hostname
+        if host is None:
+            raise SupervisorUnavailable("supervisor URL has no host")
+        connection = http.client.HTTPConnection(host, self.base.port, timeout=3)
         try:
             body = None if data is None else json.dumps(data).encode()
             connection.request(

@@ -6,8 +6,8 @@ import aiohttp
 import pytest
 from aiohttp import web
 from homeassistant.helpers import entity_registry as er
+from support import loaded
 from test_integration import DATA, DOMAIN
-from test_runtime import loaded
 
 from custom_components.voxl_chromium import client as transport
 

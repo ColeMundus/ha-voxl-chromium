@@ -8,13 +8,13 @@ import pytest
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.service_info.hassio import HassioServiceInfo
 from pytest_homeassistant_custom_component.common import MockConfigEntry
+from support import loaded
 from test_integration import DATA, DOMAIN
-from test_runtime import loaded
 
 from custom_components.voxl_chromium.client import CannotConnect, InvalidAuth
 
 
-def discovery(config=None, slug="local_voxl_chromium"):
+def discovery(config: dict | None = None, slug: str = "local_voxl_chromium"):
     return HassioServiceInfo(
         config=DATA if config is None else config,
         name="Voxl Chromium",

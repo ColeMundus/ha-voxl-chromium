@@ -1,3 +1,4 @@
+from typing import Any
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -5,7 +6,11 @@ from homeassistant.core import HomeAssistant
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 DOMAIN = "voxl_chromium"
-DATA = {"host": "voxl-addon", "port": 8100, "token": "secret-canary-" + "x" * 32}
+DATA: dict[str, Any] = {
+    "host": "voxl-addon",
+    "port": 8100,
+    "token": "secret-canary-" + "x" * 32,
+}
 
 
 async def test_flow(hass: HomeAssistant):

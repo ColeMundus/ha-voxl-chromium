@@ -1,5 +1,7 @@
 """UI configuration for native Voxl Chromium control."""
 
+from typing import cast
+
 import probatio as vol
 from homeassistant import config_entries
 from homeassistant.data_entry_flow import AbortFlow
@@ -20,7 +22,7 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             include_uninitialized=True, match_context={"endpoint": address}
         ):
             raise AbortFlow("already_in_progress", translation_domain="homeassistant")
-        self.context["endpoint"] = address
+        cast(dict[str, str | None], self.context)["endpoint"] = address
 
     def _discovered_entry(self):
         """Prefer stable identity; never take an endpoint owned by another entry."""

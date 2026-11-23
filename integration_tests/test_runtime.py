@@ -10,27 +10,18 @@ import pytest
 from aiohttp import web
 from homeassistant.exceptions import HomeAssistantError
 from pytest_homeassistant_custom_component.common import MockConfigEntry
+from support import loaded
 from test_integration import DATA, DOMAIN
 
 from custom_components.voxl_chromium.client import (
     CannotConnect,
     Client,
     InvalidAuth,
-    endpoint,
 )
 from custom_components.voxl_chromium.media import write_media
 
 PNG = b"\x89PNG\r\n\x1a\nfixture"
 MP4 = b"\x00\x00\x00\x18ftypisomfixture"
-
-
-async def loaded(hass, data=DATA):
-    entry = MockConfigEntry(domain=DOMAIN, data=data, unique_id=endpoint(data))
-    entry.add_to_hass(hass)
-    with patch.object(Client, "health", new_callable=AsyncMock):
-        assert await hass.config_entries.async_setup(entry.entry_id)
-        await hass.async_block_till_done()
-    return entry
 
 
 @pytest.mark.parametrize(

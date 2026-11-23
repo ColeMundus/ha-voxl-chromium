@@ -10,8 +10,8 @@ import aiohttp
 import probatio as vol
 import pytest
 from aiohttp import web
+from support import loaded
 from test_integration import DOMAIN
-from test_runtime import loaded
 
 from custom_components.voxl_chromium.client import CannotConnect, Client
 

@@ -13,8 +13,8 @@ def test_publication_upserts_own_service_and_uses_actual_hostname(tmp_path):
     calls = []
 
     class Handler(BaseHTTPRequestHandler):
-        def log_message(self, *args):
-            pass
+        def log_message(self, format: str, *args: object) -> None:
+            return
 
         def do_GET(self):
             calls.append(("GET", self.path, None))

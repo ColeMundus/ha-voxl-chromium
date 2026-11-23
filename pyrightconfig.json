@@ -1,0 +1,13 @@
+{
+  "pythonVersion": "3.14",
+  "venvPath": "integration_tests",
+  "venv": ".venv",
+  "extraPaths": ["voxl_chromium", ".", "tests", "integration_tests"],
+  "include": [
+    "voxl_chromium",
+    "custom_components",
+    "tests",
+    "scripts",
+    "integration_tests"
+  ]
+}
