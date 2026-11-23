@@ -12,6 +12,7 @@ import subprocess
 import sys
 import threading
 import time
+import urllib.error
 import urllib.request
 import xml.etree.ElementTree as ET
 from pathlib import Path
@@ -45,14 +46,20 @@ def validate_options(options):
         ("fps", 1, 60),
         ("bitrate_kbps", 500, 50000),
     ]:
-        if type(value[key]) is not int or not low <= value[key] <= high:
+        number = value[key]
+        if (
+            isinstance(number, bool)
+            or not isinstance(number, int)
+            or not low <= number <= high
+        ):
             raise ValueError(f"{key} must be an integer between {low} and {high}")
     for key in ("audio", "resize", "automation_enabled"):
         if type(value[key]) is not bool:
             raise ValueError(f"{key} must be a boolean")
     scale = value["resize_scale"]
     if (
-        type(scale) not in (int, float)
+        not isinstance(scale, (int, float))
+        or isinstance(scale, bool)
         or not math.isfinite(scale)
         or not 0.5 <= scale <= 2
     ):
@@ -72,8 +79,11 @@ def validate_options(options):
         r"[a-zA-Z]{2,3}(?:-[a-zA-Z0-9]{2,8})*", value["language"]
     ):
         raise ValueError("language must be a language tag such as en-US")
+    timezone = value["timezone"]
+    if not isinstance(timezone, str):
+        raise ValueError("timezone must be an IANA timezone")
     try:
-        ZoneInfo(value["timezone"])
+        ZoneInfo(timezone)
     except (ZoneInfoNotFoundError, ValueError, TypeError) as error:
         raise ValueError("timezone must be an IANA timezone") from error
     return value
@@ -156,6 +166,8 @@ def prepare_desktop_menu(directory):
     ns = "{http://openbox.org/3.4/rc}"
     config = ET.parse("/etc/xdg/openbox/rc.xml")
     menu = config.getroot().find(ns + "menu")
+    if menu is None:
+        raise RuntimeError("openbox menu missing")
     for item in list(menu):
         if item.tag == ns + "file":
             menu.remove(item)
@@ -330,16 +342,26 @@ def prepare_data(options):
 def start_discovery():
     """Start an optional narrow publisher with a private pipe and clean environment."""
     try:
+        command = [
+            sys.executable,
+            str(Path(__file__).with_name("supervisor_discovery.py")),
+        ]
+        environment = {"PATH": "/usr/local/bin:/usr/bin:/bin"}
+        if os.geteuid() == 0:
+            return subprocess.Popen(
+                command,
+                stdin=subprocess.PIPE,
+                env=environment,
+                start_new_session=True,
+                user=1000,
+                group=1000,
+                extra_groups=[],
+            )
         return subprocess.Popen(
-            [sys.executable, str(Path(__file__).with_name("supervisor_discovery.py"))],
+            command,
             stdin=subprocess.PIPE,
-            env={"PATH": "/usr/local/bin:/usr/bin:/bin"},
+            env=environment,
             start_new_session=True,
-            **(
-                {"user": 1000, "group": 1000, "extra_groups": []}
-                if os.geteuid() == 0
-                else {}
-            ),
         )
     except OSError:
         print("Optional Supervisor discovery unavailable", flush=True)

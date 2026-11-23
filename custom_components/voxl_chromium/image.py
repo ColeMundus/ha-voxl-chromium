@@ -23,10 +23,7 @@ class LastScreenshot(ImageEntity):
         self._entry_id = entry.entry_id
         self._attr_unique_id = f"{entry.entry_id}_last_screenshot"
         self._runtime = hass.data[DOMAIN][entry.entry_id]
-
-    @property
-    def available(self):
-        return self._runtime.image is not None
+        self._attr_available = self._runtime.image is not None
 
     async def async_added_to_hass(self):
         await super().async_added_to_hass()
@@ -38,6 +35,7 @@ class LastScreenshot(ImageEntity):
 
     @callback
     def _updated(self):
+        self._attr_available = self._runtime.image is not None
         self._attr_image_last_updated = dt_util.utcnow()
         self.async_write_ha_state()
 

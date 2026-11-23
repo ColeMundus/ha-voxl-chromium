@@ -9,8 +9,8 @@ from aiohttp import web
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.exceptions import HomeAssistantError
 from pytest_homeassistant_custom_component.common import MockConfigEntry
+from support import loaded
 from test_integration import DATA, DOMAIN
-from test_runtime import loaded
 
 from custom_components.voxl_chromium.client import CannotConnect, Client, InvalidAuth
 

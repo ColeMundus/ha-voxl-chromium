@@ -5,10 +5,20 @@ import select
 import socket
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from typing import TypedDict
 from urllib.parse import parse_qs, urlsplit
 
 PREFIX = "/api/hassio_ingress/smoke-token/"
-STATE = {"typed": "", "clicks": 0, "visits": 0, "previousStorage": None}
+
+
+class FixtureState(TypedDict):
+    typed: str
+    clicks: int
+    visits: int
+    previousStorage: str | None
+
+
+STATE: FixtureState = {"typed": "", "clicks": 0, "visits": 0, "previousStorage": None}
 NAVIGATION = {"acks": [], "visible": []}
 INPUT_STATE = {}
 INPUT_LOCK = threading.Lock()
@@ -77,8 +87,8 @@ requestAnimationFrame(tick)}tick()</script>"""
 class Proxy(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
 
-    def log_message(self, *_):
-        pass
+    def log_message(self, format: str, *args: object) -> None:
+        return
 
     def do_GET(self):
         path = urlsplit(self.path)

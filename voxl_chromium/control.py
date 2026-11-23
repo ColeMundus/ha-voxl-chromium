@@ -14,6 +14,7 @@ import sys
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from typing import cast
 from urllib.parse import urlencode, urlsplit
 
 from runtime import commands, validate_options, validate_token
@@ -59,7 +60,7 @@ class KeymapSlots:
         self.trace = []
 
     def chunks(self, text):
-        self._ensure_pool()
+        pool = self._ensure_pool()
         external = self._external_keysyms()
         chunks = []
         current = []
@@ -68,7 +69,7 @@ class KeymapSlots:
             codepoint = ord(char)
             if not self._in_map(char, external):
                 if codepoint not in occupants and (
-                    not self.pool or len(occupants) >= len(self.pool)
+                    not pool or len(occupants) >= len(pool)
                 ):
                     if not current:
                         raise RuntimeError("no keymap slots for unmapped character")
@@ -94,7 +95,7 @@ class KeymapSlots:
         Returns True when the map changed and the caller must wait until the
         browser has observed that change before sending keys.
         """
-        self._ensure_pool()
+        pool = self._ensure_pool()
         mapped = self.display.mapped_keysyms()
         needed = []
         seen = set()
@@ -106,10 +107,10 @@ class KeymapSlots:
             needed.append(char)
         if not needed:
             return False
-        if len(needed) > len(self.pool):
+        if len(needed) > len(pool):
             raise RuntimeError("type_text chunk exceeds keymap slots")
         used = {ord(char) for char in text}
-        free = [keycode for keycode in self.pool if keycode not in self.owned.values()]
+        free = [keycode for keycode in pool if keycode not in self.owned.values()]
         reusable = [
             keycode
             for codepoint, keycode in self.owned.items()
@@ -171,9 +172,10 @@ class KeymapSlots:
     def _in_map(self, char, mapped):
         return unicode_keysym(char) in mapped or ord(char) in mapped
 
-    def _ensure_pool(self):
+    def _ensure_pool(self) -> list[int]:
         if self.pool is None:
             self.pool = list(self.display.empty_keycodes())
+        return self.pool
 
 
 class _XPropertyEvent(ctypes.Structure):
@@ -723,15 +725,16 @@ class LocalRestoreHandler(socketserver.StreamRequestHandler):
         self.connection.settimeout(1)
         if self.rfile.read(1) != b"R":
             return
-        if not self.server.lifecycle.acquire(blocking=False):
+        server = cast(LocalRestoreServer, self.server)
+        if not server.lifecycle.acquire(blocking=False):
             return
         try:
-            self.server.backend.restore_window()
+            server.backend.restore_window()
             self.wfile.write(b"OK")
         except Exception:  # noqa: BLE001 - never leak a restore traceback
             pass
         finally:
-            self.server.lifecycle.release()
+            server.lifecycle.release()
 
 
 def restore_local():
@@ -787,8 +790,12 @@ class ControlServer(ThreadingHTTPServer):
 
 
 class Handler(BaseHTTPRequestHandler):
-    def log_message(self, *args):
-        pass
+    def log_message(self, format: str, *args: object) -> None:
+        return
+
+    @property
+    def control(self) -> ControlServer:
+        return cast(ControlServer, self.server)
 
     def reply(self, status, body, kind="application/json"):
         if isinstance(body, dict):
@@ -847,7 +854,7 @@ class Handler(BaseHTTPRequestHandler):
             return self.reply(403, {"error": "forbidden"})
         auth = self.headers.get_all("Authorization", [])
         if len(auth) != 1 or not hmac.compare_digest(
-            auth[0].encode("utf-8"), b"Bearer " + self.server.token
+            auth[0].encode("utf-8"), b"Bearer " + self.control.token
         ):
             return self.reply(401, {"error": "unauthorized"})
         routes = {
@@ -876,7 +883,7 @@ class Handler(BaseHTTPRequestHandler):
         except (ValueError, TypeError, UnicodeError, RecursionError, TimeoutError):
             return self.reply(400, {"error": "invalid request"})
         gate = (
-            self.server.mutation
+            self.control.mutation
             if self.path
             in (
                 "/open_url",
@@ -886,12 +893,12 @@ class Handler(BaseHTTPRequestHandler):
                 "/press_key",
                 "/scroll",
             )
-            else self.server.captures
+            else self.control.captures
         )
         if not gate.acquire(blocking=False):
             return self.reply(429, {"error": "busy"})
         try:
-            operation = getattr(self.server.backend, self.path[1:])
+            operation = getattr(self.control.backend, self.path[1:])
             result = operation(*args)
             if self.path in ("/open_url", "/restore_window"):
                 result = {"ok": True}
