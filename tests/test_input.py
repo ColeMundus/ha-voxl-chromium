@@ -7,11 +7,68 @@ import pytest
 from test_control import request, serving
 
 
-def native_backend(monkeypatch):
+class FakeDisplay:
+    """X map that records binds and models xdotool's startup snapshot."""
+
+    def __init__(self, empty=None):
+        self.mapped = set(range(32, 127))
+        self.level0 = {}
+        self._empty = list(empty if empty is not None else range(8, 28))
+        self.binds_during_type = []
+        self.snapshots = []
+        self.in_type = False
+        self._server = 1000
+        self._user_time = 50
+        self.log = []
+
+    def empty_keycodes(self):
+        return [keycode for keycode in self._empty if keycode not in self.level0]
+
+    def mapped_keysyms(self):
+        return set(self.mapped)
+
+    def bind_level0(self, mapping):
+        if self.in_type:
+            self.binds_during_type.append(dict(mapping))
+        for keycode, keysym in mapping.items():
+            previous = self.level0.get(keycode)
+            if previous is not None:
+                self.mapped.discard(previous)
+            self.level0[keycode] = keysym
+            self.mapped.add(keysym)
+        self.log.append(("bind", dict(mapping)))
+
+    def server_time(self, window):
+        del window
+        self._server += 10
+        return self._server
+
+    def user_time(self, window):
+        del window
+        return self._user_time
+
+    def note_shift(self):
+        self._server += 10
+        self._user_time = self._server
+
+    def note_type(self):
+        self.snapshots.append(set(self.mapped))
+        self.in_type = True
+        self.in_type = False
+        self._server += 10
+        self._user_time = self._server
+
+
+def native_backend(monkeypatch, display=None):
     calls = []
+    display = display or FakeDisplay()
 
     def run(argv, **kwargs):
         calls.append((argv, kwargs))
+        if argv[:2] == ["xdotool", "key"] and "shift" in argv:
+            display.note_shift()
+        if argv[:2] == ["xdotool", "type"]:
+            display.note_type()
         output = {
             ("wmctrl", "-l"): "0x0123 0 host Browser\n",
             ("xdotool", "search", "--class", "^Chromium$"): "291\n",
@@ -21,7 +78,9 @@ def native_backend(monkeypatch):
         return SimpleNamespace(stdout=output)
 
     monkeypatch.setattr(control.subprocess, "run", run)
-    return control.BrowserBackend(), calls
+    backend = control.BrowserBackend()
+    backend.keymap = control.KeymapSlots(display)
+    return backend, calls
 
 
 def test_click_vertical_slice_restores_checks_geometry_and_clicks(monkeypatch):
@@ -114,7 +173,7 @@ def test_type_text_literal_unicode_stdin_only_and_private_failure(monkeypatch, c
             "type",
             "--clearmodifiers",
             "--delay",
-            "10",
+            "0",
             "--file",
             "-",
         ]
@@ -407,3 +466,96 @@ def test_input_operations_wait_for_shared_lifecycle_lock(monkeypatch, path, data
             assert calls == []
         pending.result(timeout=2)
     assert calls
+
+
+def _xdotool_events(display, text):
+    """What xdotool does with the map it read when type started."""
+    events = []
+    for snapshot in display.snapshots:
+        burst = []
+        for char in text if len(display.snapshots) == 1 else text:
+            keysym = control.unicode_keysym(char)
+            if keysym not in snapshot and ord(char) not in snapshot:
+                burst.append(("remap", char))
+            burst.append(("press", char))
+            burst.append(("release", char))
+        events.append(burst)
+    return events
+
+
+def test_long_smoke_literal_is_more_than_eight_adjacent_unmapped_characters():
+    from smoke import LONG_INPUT_LITERAL
+
+    run = best = 0
+    for char in LONG_INPUT_LITERAL:
+        if ord(char) > 127:
+            run += 1
+            best = max(best, run)
+        else:
+            run = 0
+    assert best > 8
+    assert len(set(LONG_INPUT_LITERAL)) == len(LONG_INPUT_LITERAL)
+
+
+def test_type_text_does_not_remap_between_press_and_release(monkeypatch):
+    backend, calls = native_backend(monkeypatch)
+    display = backend.keymap.display
+    text = "héllo 世界🙂"
+    with serving(backend) as server:
+        assert request(server, "POST", "/type_text", {"text": text})[0] == 200
+    events = _xdotool_events(display, text)[0]
+    assert events[0][0] == "press"
+    assert events[-1][0] == "release"
+    assert [event for event in events if event[0] == "remap"] == []
+    assert display.binds_during_type == []
+    assert ("bind", display.log[0][1]) == display.log[0]
+    assert all(item[0] != "bind" for item in display.log[1:])
+    typed = [args for args, _ in calls if args[:2] == ["xdotool", "type"]]
+    assert typed == [
+        ["xdotool", "type", "--clearmodifiers", "--delay", "0", "--file", "-"]
+    ]
+
+
+def test_type_text_does_not_rebind_a_slot_waiting_for_ack():
+    display = FakeDisplay(empty=[8])
+    keymap = control.KeymapSlots(display, ack_timeout=0.05)
+    assert keymap.arm("世", "0x10") is True
+    stamp = keymap.stamp("0x10")
+    keymap.note_burst("世", stamp)
+    with pytest.raises(RuntimeError, match="acknowledgment"):
+        keymap.arm("界", "0x10")
+    assert display.level0[8] == control.unicode_keysym("世")
+    assert [item[0] for item in keymap.trace] == ["bind", "wait"]
+    display._user_time = stamp + 5
+    assert keymap.arm("界", "0x10") is True
+    assert [item[0] for item in keymap.trace] == ["bind", "wait", "wait", "bind"]
+    assert display.level0[8] == control.unicode_keysym("界")
+
+
+def test_type_text_reuses_a_binding_and_chunks_when_the_pool_is_full(monkeypatch):
+    display = FakeDisplay(empty=[8, 9])
+    backend, calls = native_backend(monkeypatch, display)
+    with serving(backend) as server:
+        assert request(server, "POST", "/type_text", {"text": "世"})[0] == 200
+        assert request(server, "POST", "/type_text", {"text": "世"})[0] == 200
+        assert request(server, "POST", "/type_text", {"text": "世界🙂"})[0] == 200
+    typed = [
+        kwargs["input"] for args, kwargs in calls if args[:2] == ["xdotool", "type"]
+    ]
+    assert typed == ["世", "世", "世界", "🙂"]
+    shifts = [
+        args
+        for args, _ in calls
+        if args[:2] == ["xdotool", "key"] and args[-1] == "shift"
+    ]
+    assert len(shifts) == 3
+    assert [item[0] for item in backend.keymap.trace].count("wait") == 1
+    assert display.binds_during_type == []
+    for snapshot, chunk in zip(display.snapshots, typed, strict=True):
+        missing = [
+            char
+            for char in chunk
+            if control.unicode_keysym(char) not in snapshot
+            and ord(char) not in snapshot
+        ]
+        assert missing == []
