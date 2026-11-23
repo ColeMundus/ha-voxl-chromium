@@ -14,3 +14,8 @@ asyncio_default_fixture_loop_scope = "function"
 pythonpath = [".."]
 testpaths = ["."]
 addopts = "-q"
+
+[dependency-groups]
+dev = [
+    "pytest-randomly>=5.1.0",
+]
