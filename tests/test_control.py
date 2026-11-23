@@ -69,7 +69,7 @@ def test_missing_window_relaunch_is_bounded_and_uses_owned_launcher(monkeypatch)
     import control
 
     launched = []
-    backend = control.BrowserBackend(launcher=lambda argv: launched.append(argv))
+    backend = control.BrowserBackend(launcher=launched.append)
 
     def run(argv, *, capture=False):
         if argv == ["wmctrl", "-l"]:
@@ -123,6 +123,7 @@ def test_local_restore_works_without_api_and_does_not_accept_commands(tmp_path):
             cwd=Path(control.__file__).parent,
             capture_output=True,
             timeout=3,
+            check=False,
         )
         assert result.returncode == 0, result.stderr
         assert backend.calls == [("restore",)]
