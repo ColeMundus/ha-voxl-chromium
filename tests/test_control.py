@@ -341,6 +341,28 @@ def test_subprocess_arguments_and_verified_restore(monkeypatch):
         backend.restore_window()
 
 
+def test_mutation_gate_is_free_when_the_response_is_written(monkeypatch):
+    import control
+
+    backend = Backend()
+    observed = []
+    original = control.Handler.reply
+
+    def reply(self, status, body, kind="application/json"):
+        if self.path == "/type_text":
+            acquired = self.server.mutation.acquire(blocking=False)
+            observed.append(acquired)
+            if acquired:
+                self.server.mutation.release()
+        return original(self, status, body, kind)
+
+    monkeypatch.setattr(control.Handler, "reply", reply)
+    backend.type_text = lambda text: None
+    with serving(backend) as server:
+        assert request(server, "POST", "/type_text", {"text": "ab"})[0] == 200
+    assert observed == [True]
+
+
 def test_mutations_serialized_and_capture_concurrency_limited():
     from concurrent.futures import ThreadPoolExecutor
 
