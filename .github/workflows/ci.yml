@@ -20,8 +20,11 @@ jobs:
   metadata:
     name: Add-on, integration and HACS validation
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 5
     steps:
+      - name: Start budget clock
+        id: budget
+        run: echo "start=$(date +%s)" >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -48,12 +51,21 @@ jobs:
           category: integration
           github_token: ${{ github.token }}
           comment: false
+      - name: Enforce time budget
+        if: always()
+        env:
+          START: ${{ steps.budget.outputs.start }}
+          LIMIT: "180"
+        run: bash scripts/ci_budget.sh
 
   python:
     name: Python tests and lint
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 5
     steps:
+      - name: Start budget clock
+        id: budget
+        run: echo "start=$(date +%s)" >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -74,12 +86,21 @@ jobs:
       - run: uv run pytest
       - run: uv run ruff check .
       - run: uv run ruff format --check .
+      - name: Enforce time budget
+        if: always()
+        env:
+          START: ${{ steps.budget.outputs.start }}
+          LIMIT: "60"
+        run: bash scripts/ci_budget.sh
 
   integration:
     name: Home Assistant integration tests
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 5
     steps:
+      - name: Start budget clock
+        id: budget
+        run: echo "start=$(date +%s)" >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -103,11 +124,17 @@ jobs:
         run: uv run --project integration_tests ty check
       - name: List pyright diagnostics ty does not report
         run: uv run --project integration_tests python scripts/typecheck_gap.py
+      - name: Enforce time budget
+        if: always()
+        env:
+          START: ${{ steps.budget.outputs.start }}
+          LIMIT: "120"
+        run: bash scripts/ci_budget.sh
 
   container:
     name: Native build and smoke (${{ matrix.arch }})
     runs-on: ${{ matrix.runner }}
-    timeout-minutes: 90
+    timeout-minutes: 12
     strategy:
       fail-fast: false
       matrix:
@@ -117,6 +144,9 @@ jobs:
           - arch: aarch64
             runner: ubuntu-24.04-arm
     steps:
+      - name: Start budget clock
+        id: budget
+        run: echo "start=$(date +%s)" >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -194,3 +224,14 @@ jobs:
             "$TRIVY_IMAGE" fs --scanners vuln \
             --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 \
             --timeout 15m /source
+      - name: Enforce time budget
+        if: always()
+        env:
+          START: ${{ steps.budget.outputs.start }}
+          # Pull-request native jobs hit the layer cache. Run 45286171554
+          # finished in 100s (amd64) and 107s (aarch64). Main and the schedule
+          # rebuild the apt stages and write the cache; run 45286630604 took
+          # 313s and 267s. A 35s budget cannot fit apt, one cargo build, and
+          # smoke, so those runs get 600s and pull requests get 240s.
+          LIMIT: ${{ github.event_name == 'pull_request' && '240' || '600' }}
+        run: bash scripts/ci_budget.sh

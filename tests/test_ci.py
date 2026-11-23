@@ -38,6 +38,28 @@ def test_smoke_installs_only_the_headless_browser_it_uses():
     assert "AS runtime-apt" in dockerfile
 
 
+def test_job_budgets_are_tighter_than_the_old_timeouts_and_not_35s():
+    workflow = yaml.safe_load((ROOT / ".github/workflows/ci.yml").read_text())
+    jobs = workflow["jobs"]
+    assert jobs["metadata"]["timeout-minutes"] == 5
+    assert jobs["python"]["timeout-minutes"] == 5
+    assert jobs["integration"]["timeout-minutes"] == 5
+    assert jobs["container"]["timeout-minutes"] == 12
+    limits = {}
+    for name, job in jobs.items():
+        step = next(
+            item for item in job["steps"] if item.get("name") == "Enforce time budget"
+        )
+        limits[name] = step["env"]["LIMIT"]
+        assert step["if"] == "always()"
+    assert limits["metadata"] == "180"
+    assert limits["python"] == "60"
+    assert limits["integration"] == "120"
+    assert "240" in limits["container"]
+    assert "600" in limits["container"]
+    assert "35" not in limits["container"]
+
+
 def test_ci_uses_pinned_native_container_for_both_security_gates():
     workflow = yaml.safe_load((ROOT / ".github/workflows/ci.yml").read_text())
     steps = workflow["jobs"]["container"]["steps"]
