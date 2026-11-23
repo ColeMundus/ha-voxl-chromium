@@ -31,7 +31,7 @@ def main() -> int:
     commands.append(["uv", "run", "pytest", "-q"])
     started = time.perf_counter()
     for command in commands:
-        result = subprocess.run(command)
+        result = subprocess.run(command, check=False)
         if result.returncode:
             return result.returncode
     elapsed = time.perf_counter() - started
