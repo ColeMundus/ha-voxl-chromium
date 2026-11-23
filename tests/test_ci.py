@@ -60,7 +60,9 @@ def test_checks_job_reports_every_static_failure():
     assert "INPUT_CATEGORY=integration" in validate["run"]
     assert hacs["timeout-minutes"] == 5
     restore = next(
-        item for item in hacs["steps"] if item.get("name") == "Restore pinned HACS image"
+        item
+        for item in hacs["steps"]
+        if item.get("name") == "Restore pinned HACS image"
     )
     assert restore["with"]["key"].startswith("hacs-action-")
     python_runs = [step.get("run", "") for step in workflow["jobs"]["python"]["steps"]]
