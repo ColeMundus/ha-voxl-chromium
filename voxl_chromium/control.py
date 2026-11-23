@@ -280,7 +280,7 @@ class X11Display:
         ]
         lib.XFree.argtypes = [ctypes.c_void_p]
         lib.XSetErrorHandler.restype = ctypes.c_void_p
-        global _X_ERROR_HANDLER
+        global _X_ERROR_HANDLER  # noqa: PLW0603 - keep the ctypes callback alive
         if _X_ERROR_HANDLER is None:
             prototype = ctypes.CFUNCTYPE(ctypes.c_int, ctypes.c_void_p, ctypes.c_void_p)
 

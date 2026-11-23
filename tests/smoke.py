@@ -120,6 +120,7 @@ def exec_python(container, code, payload):
         capture_output=True,
         text=True,
         timeout=90,
+        check=False,
     )
     if result.returncode:
         detail = result.stderr.replace(AUTOMATION_TOKEN, "[REDACTED]")
@@ -390,7 +391,9 @@ print(json.dumps({'checked': found}))
 
 
 def docker(*args, check=True):
-    result = subprocess.run(["docker", *args], capture_output=True, text=True)
+    result = subprocess.run(
+        ["docker", *args], capture_output=True, text=True, check=False
+    )
     if check and result.returncode:
         raise RuntimeError(f"docker {' '.join(args)}: {result.stderr}")
     return (

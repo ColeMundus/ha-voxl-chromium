@@ -385,6 +385,7 @@ def main():
                             stdout=subprocess.DEVNULL,
                             stderr=subprocess.DEVNULL,
                             timeout=2,
+                            check=False,
                         ).returncode
                         == 0
                     ),
@@ -399,6 +400,7 @@ def main():
                             stdout=subprocess.DEVNULL,
                             stderr=subprocess.DEVNULL,
                             timeout=2,
+                            check=False,
                         ).returncode
                         == 0
                     ),

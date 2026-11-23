@@ -48,7 +48,7 @@ def test_monitor_does_not_treat_closed_browser_as_critical(monkeypatch):
     closed = SimpleNamespace(poll=lambda: 0, returncode=0)
     alive = SimpleNamespace(poll=lambda: None)
     stopped = []
-    monkeypatch.setattr(mod, "stop_all", lambda processes: stopped.append(processes))
+    monkeypatch.setattr(mod, "stop_all", stopped.append)
 
     def interrupt(_):
         raise KeyboardInterrupt
