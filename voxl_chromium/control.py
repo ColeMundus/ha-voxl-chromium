@@ -893,13 +893,21 @@ class Handler(BaseHTTPRequestHandler):
             kind = {"/screenshot": "image/png", "/record": "video/mp4"}.get(
                 self.path, "application/json"
             )
-            self.reply(200, result if result is not None else {"ok": True}, kind)
+            status = 200
+            body = result if result is not None else {"ok": True}
         except RequestError:
-            self.reply(400, {"error": "invalid request"})
+            status, body, kind = 400, {"error": "invalid request"}, "application/json"
         except Exception:
-            self.reply(502, {"error": "dependency unavailable"})
+            status, body, kind = (
+                502,
+                {"error": "dependency unavailable"},
+                "application/json",
+            )
         finally:
             gate.release()
+        # Reply only after the gate is free. A client that sends the next
+        # mutation as soon as it reads this response must not observe a 429.
+        self.reply(status, body, kind)
 
     def read_json(self):
         if self.headers.get("Transfer-Encoding") is not None:
