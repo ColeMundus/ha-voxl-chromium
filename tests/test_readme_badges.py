@@ -1,8 +1,8 @@
 """Keep README chips local, accessible and visually consistent."""
 
 import re
+import xml.etree.ElementTree as ET
 from pathlib import Path
-from xml.etree import ElementTree
 
 ROOT = Path(__file__).resolve().parents[1]
 SVG = "{http://www.w3.org/2000/svg}"
@@ -20,7 +20,7 @@ def test_readme_chip_standard():
     assert len(re.findall(r"\[!\[", readme)) == 4
     colors = ["#64748b", "#0369a1", "#2563eb", None]
     for (alt, path, link), color in zip(chips, colors, strict=True):
-        image = ElementTree.parse(ROOT / path).getroot()
+        image = ET.parse(ROOT / path).getroot()
         assert image.tag == SVG + "svg"
         assert image.attrib["height"] == "20"
         assert image.attrib["role"] == "img"
