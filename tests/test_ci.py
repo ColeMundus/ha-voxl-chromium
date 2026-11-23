@@ -17,9 +17,7 @@ def test_smoke_installs_only_the_headless_browser_it_uses():
     assert install["run"] == "uv run playwright install --only-shell chromium"
     assert "--with-deps" not in install["run"]
     cache = next(
-        step
-        for step in steps
-        if str(step.get("uses", "")).startswith("actions/cache@")
+        step for step in steps if str(step.get("uses", "")).startswith("actions/cache@")
     )
     assert cache["with"]["path"] == "~/.cache/ms-playwright"
     assert cache["with"]["key"] == (
