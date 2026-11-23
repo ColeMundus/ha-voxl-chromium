@@ -1,0 +1,22 @@
+amends "package://github.com/jdx/hk/releases/download/v2.13.0/hk@2.13.0#/Config.pkl"
+
+import "package://github.com/jdx/hk/releases/download/v2.13.0/hk@2.13.0#/Builtins.pkl"
+
+hooks {
+  ["pre-commit"] {
+    fix = true
+    steps {
+      ["ruff-format"] = Builtins.ruff_format
+      ["ruff"] = Builtins.ruff
+    }
+  }
+  ["pre-push"] {
+    steps {
+      ["ci-check"] = new Step {
+        check = "uv run python scripts/ci_check.py"
+        exclusive = true
+        glob = List("**/*")
+      }
+    }
+  }
+}
