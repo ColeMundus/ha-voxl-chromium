@@ -17,9 +17,11 @@ WORKDIR /build/source
 COPY patches/ /build/patches/
 RUN git apply --check /build/patches/zip-security.patch \
     && git apply /build/patches/zip-security.patch \
-    && cargo test --release --locked --lib \
-    && cargo build --release --locked --bin voxl \
-    && strip target/release/voxl
+    && cargo build --release --locked --bin voxl --tests \
+    && cargo test --release --locked --lib --offline \
+    && strip target/release/voxl \
+    && sha256sum target/release/voxl \
+    && ls -l target/release/voxl
 
 FROM debian:bookworm-slim
 ARG BUILD_VERSION=0.3.0
