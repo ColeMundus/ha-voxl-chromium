@@ -250,7 +250,7 @@ def stop_all(processes):
         proc.wait()
 
 
-def monitor(processes, threads=(), cleanup=True, stopped=None):
+def monitor(processes, threads=(), *, cleanup=True, stopped=None):
     try:
         while True:
             if stopped is not None and stopped.is_set():
