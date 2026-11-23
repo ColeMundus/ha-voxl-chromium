@@ -179,7 +179,8 @@ def test_automation_token_default_validation_and_browser_exclusion():
     options = mod.validate_options({"automation_token": token})
     assert options["automation_token"] == token
     assert token not in repr(mod.commands(options))
-    assert os.environ.get("automation_token") is None
+    # The option name is lowercase; the process must not export it.
+    assert os.environ.get("automation_token") is None  # noqa: SIM112
 
 
 def test_child_failure_terminates_other_processes():

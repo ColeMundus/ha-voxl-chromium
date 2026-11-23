@@ -1,5 +1,6 @@
 """Unprivileged desktop command construction and supervision."""
 
+import contextlib
 import json
 import math
 import os
@@ -136,10 +137,8 @@ class BrowserManager:
             # Reap closed browsers/forwarders without abandoning group ownership.
             for name, child in list(self.processes.items()):
                 if child.poll() is not None:
-                    try:
+                    with contextlib.suppress(ProcessLookupError):
                         os.killpg(child.pid, signal.SIGKILL)
-                    except ProcessLookupError:
-                        pass
                     del self.processes[name]
             self.serial += 1
             proc = subprocess.Popen(argv, start_new_session=True)
@@ -243,15 +242,11 @@ def stop_all(processes):
         if proc.poll() is None:
             # Signal the leader first; killing renderers with it interrupts saves.
             proc.terminate()
-            try:
+            with contextlib.suppress(subprocess.TimeoutExpired):
                 proc.wait(timeout=max(0.01, deadline - time.monotonic()))
-            except subprocess.TimeoutExpired:
-                pass
         # A group leader may exit while its descendants remain alive.
-        try:
+        with contextlib.suppress(ProcessLookupError):
             os.killpg(proc.pid, signal.SIGKILL)
-        except ProcessLookupError:
-            pass
         proc.wait()
 
 

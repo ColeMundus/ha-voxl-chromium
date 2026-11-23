@@ -63,16 +63,18 @@ async def test_typed_canary_not_in_errors_or_component_logs(
     with caplog.at_level(logging.DEBUG, logger="custom_components.voxl_chromium"):
         if failure == "transport":
             session = hass.data[DOMAIN][entry.entry_id].client.session
-            with patch.object(
-                session, "request", side_effect=aiohttp.ClientError(canary)
+            with (
+                patch.object(
+                    session, "request", side_effect=aiohttp.ClientError(canary)
+                ),
+                pytest.raises(CannotConnect) as error,
             ):
-                with pytest.raises(CannotConnect) as error:
-                    await hass.services.async_call(
-                        DOMAIN,
-                        "type_text",
-                        {"config_entry_id": entry.entry_id, "text": canary},
-                        blocking=True,
-                    )
+                await hass.services.async_call(
+                    DOMAIN,
+                    "type_text",
+                    {"config_entry_id": entry.entry_id, "text": canary},
+                    blocking=True,
+                )
         else:
             with pytest.raises(CannotConnect) as error:
                 await hass.services.async_call(
