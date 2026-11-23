@@ -41,15 +41,30 @@ def test_smoke_installs_only_the_headless_browser_it_uses():
 def test_checks_job_reports_every_static_failure():
     workflow = yaml.safe_load((ROOT / ".github/workflows/ci.yml").read_text())
     steps = workflow["jobs"]["checks"]["steps"]
-    for step_id in ("ruff", "ruff-format", "addon", "hassfest", "hacs"):
+    for step_id in ("ruff", "ruff-format", "addon", "hassfest"):
         step = next(item for item in steps if item.get("id") == step_id)
         assert step["continue-on-error"] is True
     report = next(
         item for item in steps if item.get("name") == "Report every failed check"
     )
     assert report["if"] == "always()"
-    for label in ("ruff check", "ruff format", "addon-linter", "hassfest", "HACS"):
+    for label in ("ruff check", "ruff format", "addon-linter", "hassfest"):
         assert label in report["run"]
+    hacs = workflow["jobs"]["hacs"]
+    validate = next(
+        item
+        for item in hacs["steps"]
+        if item.get("name") == "Validate HACS custom repository"
+    )
+    assert "ghcr.io/hacs/action@sha256:187499a09c5d" in validate["run"]
+    assert "INPUT_CATEGORY=integration" in validate["run"]
+    assert hacs["timeout-minutes"] == 5
+    restore = next(
+        item
+        for item in hacs["steps"]
+        if item.get("name") == "Restore pinned HACS image"
+    )
+    assert restore["with"]["key"].startswith("hacs-action-")
     python_runs = [step.get("run", "") for step in workflow["jobs"]["python"]["steps"]]
     assert all("ruff" not in run for run in python_runs)
 
