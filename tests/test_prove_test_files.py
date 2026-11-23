@@ -10,6 +10,8 @@ ROOT = Path(__file__).parents[1]
 spec = importlib.util.spec_from_file_location(
     "prove_test_files", ROOT / "scripts" / "prove_test_files.py"
 )
+if spec is None or spec.loader is None:
+    raise RuntimeError("prove_test_files could not be loaded")
 prove = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(prove)
 
