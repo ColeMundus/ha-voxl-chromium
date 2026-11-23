@@ -83,3 +83,5 @@ Project code is **GPL-2.0-or-later**. Upstream voxl source is MIT; its executabl
 links GPL-covered x264. Other runtime components retain their own licenses.
 Distribution is source-build-only. See [LICENSE](LICENSE), [NOTICE.md](NOTICE.md)
 and the [local dependency patch](voxl_chromium/MODIFICATIONS.md).
+
+Feedback sample 1.
