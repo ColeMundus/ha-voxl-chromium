@@ -468,6 +468,40 @@ def request(url, data=None, method=None, headers=None):
         return error.code, error.read()
 
 
+def open_loaded_page(page, url, health_url):
+    """Open url after Chromium has finished its startup route replay.
+
+    Chromium on Linux dumps the route table when its network service starts
+    and treats that dump as a network change. A navigation already in flight
+    is aborted with net::ERR_NETWORK_CHANGED. That dump still overlaps the
+    first navigation on aarch64. A data URL does not use the network. The
+    health endpoint is then requested through the browser's own network stack
+    until that startup notification has passed. A data document cannot fetch
+    an http URL, so this probe is not page JavaScript. url itself is loaded once.
+    """
+    page.goto("data:text/html,ready")
+    deadline = time.monotonic() + 15
+    last = "browser network service did not finish starting"
+    while time.monotonic() < deadline:
+        try:
+            response = page.request.get(health_url, timeout=5_000)
+        except Exception as error:
+            if "ERR_NETWORK_CHANGED" not in str(error):
+                raise AssertionError(
+                    f"browser could not reach {health_url}: {error}"
+                ) from error
+            last = error
+            time.sleep(0.05)
+            continue
+        if response.status != 200:
+            raise AssertionError(
+                f"browser could not reach {health_url}: {response.status}"
+            )
+        page.goto(url)
+        return
+    raise AssertionError(last)
+
+
 def eventually(probe, timeout=60):
     end = time.monotonic() + timeout
     last = None
@@ -600,7 +634,7 @@ def run(image):
                 page = browser.new_page(viewport={"width": 1280, "height": 720})
                 errors = []
                 page.on("pageerror", lambda error: errors.append(str(error)))
-                page.goto(root + "?stats&present=canvas")
+                open_loaded_page(page, root + "?stats&present=canvas", root + "healthz")
                 page.wait_for_function("window.fps > 0", timeout=60000)
                 stats = page.evaluate("window.voxlStats")
                 print("PASS: actual WebSocket H.264 decoded by WebCodecs", stats)
@@ -708,7 +742,7 @@ with socket.socket() as connection:
             with sync_playwright() as pw:
                 browser = pw.chromium.launch(args=["--no-sandbox"])
                 page = browser.new_page(viewport={"width": 960, "height": 540})
-                page.goto(root + "?present=canvas")
+                open_loaded_page(page, root + "?present=canvas", root + "healthz")
                 page.wait_for_function("window.fps > 0", timeout=60000)
                 eventually(
                     lambda: (

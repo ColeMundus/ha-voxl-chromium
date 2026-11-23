@@ -6,6 +6,8 @@ import threading
 from http.server import ThreadingHTTPServer
 from urllib.parse import urlencode
 
+import pytest
+import smoke
 from ingress_proxy import INPUT_STATE, Proxy
 
 
@@ -43,3 +45,49 @@ def test_input_fixture_does_not_revert_to_an_older_browser_report():
             server.shutdown()
             thread.join(timeout=3)
             INPUT_STATE.clear()
+
+
+class _Response:
+    def __init__(self, status):
+        self.status = status
+
+
+class _Request:
+    def __init__(self, page):
+        self.page = page
+
+    def get(self, url, timeout):
+        if not self.page.results:
+            raise AssertionError("request after the scripted results")
+        result = self.page.results.pop(0)
+        if isinstance(result, Exception):
+            raise result
+        return _Response(result)
+
+
+class _Page:
+    def __init__(self, results):
+        self.results = list(results)
+        self.urls = []
+        self.request = _Request(self)
+
+    def goto(self, url):
+        self.urls.append(url)
+
+
+def test_application_navigation_waits_for_the_startup_route_replay():
+    page = _Page([RuntimeError("net::ERR_NETWORK_CHANGED"), 200])
+    smoke.open_loaded_page(
+        page, "http://127.0.0.1:9/app?x=1", "http://127.0.0.1:9/healthz"
+    )
+    assert page.urls == ["data:text/html,ready", "http://127.0.0.1:9/app?x=1"]
+    assert page.results == []
+
+
+def test_a_real_browser_network_error_is_not_waited_out():
+    page = _Page([RuntimeError("net::ERR_CONNECTION_REFUSED")])
+    with pytest.raises(AssertionError, match="ERR_CONNECTION_REFUSED"):
+        smoke.open_loaded_page(
+            page, "http://127.0.0.1:9/app", "http://127.0.0.1:9/healthz"
+        )
+    assert page.urls == ["data:text/html,ready"]
