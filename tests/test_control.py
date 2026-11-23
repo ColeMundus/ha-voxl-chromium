@@ -15,7 +15,9 @@ def serving(backend=None):
     import control
 
     server = control.ControlServer(("127.0.0.1", 0), TOKEN, backend)
-    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread = threading.Thread(
+        target=lambda: server.serve_forever(poll_interval=0.01), daemon=True
+    )
     thread.start()
     try:
         yield server
@@ -106,7 +108,9 @@ def test_local_restore_works_without_api_and_does_not_accept_commands(tmp_path):
     # The CLI path is fixed in production; exercise the same wire contract here.
     path = tmp_path / "browser.sock"
     server = control.LocalRestoreServer(str(path), backend)
-    worker = threading.Thread(target=server.serve_forever, daemon=True)
+    worker = threading.Thread(
+        target=lambda: server.serve_forever(poll_interval=0.01), daemon=True
+    )
     worker.start()
     try:
         assert stat.S_IMODE(path.stat().st_mode) == 0o600
@@ -267,7 +271,9 @@ def test_backend_proxies_bounded_binary_and_validated_wait(monkeypatch):
             self.wfile.write(data)
 
     upstream = ThreadingHTTPServer(("127.0.0.1", 0), Upstream)
-    thread = threading.Thread(target=upstream.serve_forever, daemon=True)
+    thread = threading.Thread(
+        target=lambda: upstream.serve_forever(poll_interval=0.01), daemon=True
+    )
     thread.start()
     try:
         backend = control.BrowserBackend(upstream_port=upstream.server_port)
@@ -582,7 +588,9 @@ def test_upstream_errors_and_invalid_payloads_are_sanitized(
             self.wfile.write(payload)
 
     upstream = ThreadingHTTPServer(("127.0.0.1", 0), Upstream)
-    thread = threading.Thread(target=upstream.serve_forever, daemon=True)
+    thread = threading.Thread(
+        target=lambda: upstream.serve_forever(poll_interval=0.01), daemon=True
+    )
     thread.start()
     monkeypatch.setattr(control, "MAX_PNG", 32)
     monkeypatch.setattr(control, "MAX_MP4", 32)

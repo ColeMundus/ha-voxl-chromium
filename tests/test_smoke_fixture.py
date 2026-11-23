@@ -12,7 +12,9 @@ from ingress_proxy import INPUT_STATE, Proxy
 def test_input_fixture_does_not_revert_to_an_older_browser_report():
     INPUT_STATE.clear()
     with ThreadingHTTPServer(("127.0.0.1", 0), Proxy) as server:
-        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread = threading.Thread(
+            target=lambda: server.serve_forever(poll_interval=0.01), daemon=True
+        )
         thread.start()
 
         def get(path):

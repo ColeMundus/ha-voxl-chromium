@@ -38,7 +38,9 @@ def test_publication_upserts_own_service_and_uses_actual_hostname(tmp_path):
             self.wfile.write(json.dumps({"result": "ok", "data": data}).encode())
 
     server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
-    worker = threading.Thread(target=server.serve_forever, daemon=True)
+    worker = threading.Thread(
+        target=lambda: server.serve_forever(poll_interval=0.01), daemon=True
+    )
     worker.start()
     try:
         client = discovery.SupervisorClient(

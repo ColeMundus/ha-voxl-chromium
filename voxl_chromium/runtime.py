@@ -441,7 +441,10 @@ def main():
                 ControlServer(("0.0.0.0", 8100), options["automation_token"], backend)
             )
         for server in servers:
-            thread = threading.Thread(target=server.serve_forever, daemon=True)
+            thread = threading.Thread(
+                target=lambda server=server: server.serve_forever(poll_interval=0.01),
+                daemon=True,
+            )
             thread.start()
             threads.append(thread)
         if discovery is not None:
