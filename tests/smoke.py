@@ -804,6 +804,15 @@ def run_type_stress(image, iterations):
             )
             eventually(lambda: request(base + PREFIX + "healthz")[0] == 200)
 
+            def api_ready():
+                try:
+                    return automation_request(app, "/health")["status"] == 200
+                except (RuntimeError, TimeoutError, OSError):
+                    return False
+
+            # Ingress can answer before the automation server is listening.
+            eventually(api_ready)
+
             def state():
                 return json.loads(request(base + "/input_state")[1])
 
