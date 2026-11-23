@@ -105,7 +105,7 @@ def update(pin: Path, client) -> bool:
             temporary = Path(output.name)
             output.write(json.dumps(current, indent=2) + "\n")
         temporary.chmod(pin.stat().st_mode & 0o777)
-        os.replace(temporary, pin)
+        temporary.replace(pin)
     finally:
         if temporary is not None:
             temporary.unlink(missing_ok=True)
