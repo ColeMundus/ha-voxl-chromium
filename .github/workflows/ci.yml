@@ -22,7 +22,7 @@ env:
 
 jobs:
   checks:
-    name: Lint, format, add-on, hassfest and HACS
+    name: Lint, format, add-on and hassfest
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
@@ -67,14 +67,6 @@ jobs:
         run: |
           docker run --rm -v "$PWD:/github/workspace" \
             ghcr.io/home-assistant/hassfest@sha256:f9ac52cfe0f7b8770334f191e6713aa9f10f0906a989bd38d75a4933534144c7
-      - name: HACS
-        id: hacs
-        continue-on-error: true
-        uses: docker://ghcr.io/hacs/action@sha256:187499a09c5d41f9f0d42ff80d203ed87b974c028290140913b61e005fb0aab2
-        with:
-          category: integration
-          github_token: ${{ github.token }}
-          comment: false
       - name: Report every failed check
         if: always()
         run: |
@@ -84,8 +76,7 @@ jobs:
             "ruff check:${{ steps.ruff.outcome }}" \
             "ruff format:${{ steps.ruff-format.outcome }}" \
             "addon-linter:${{ steps.addon.outcome }}" \
-            "hassfest:${{ steps.hassfest.outcome }}" \
-            "HACS:${{ steps.hacs.outcome }}"
+            "hassfest:${{ steps.hassfest.outcome }}"
           do
             name="${pair%%:*}"
             outcome="${pair#*:}"
@@ -99,6 +90,72 @@ jobs:
             echo "Failed checks: ${failed[*]}"
             exit 1
           fi
+      - name: Enforce time budget
+        if: always()
+        env:
+          START: ${{ steps.budget.outputs.start }}
+          LIMIT: "180"
+        run: bash scripts/ci_budget.sh
+
+  hacs:
+    name: HACS validation
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Start budget clock
+        id: budget
+        run: echo "start=$(date +%s)" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Restore pinned HACS image
+        id: hacs-image
+        uses: actions/cache/restore@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: ${{ runner.temp }}/hacs-image
+          key: hacs-action-187499a09c5d41f9f0d42ff80d203ed87b974c028290140913b61e005fb0aab2
+      - name: Load or pull the pinned HACS image
+        run: |
+          set -euo pipefail
+          image="ghcr.io/hacs/action@sha256:187499a09c5d41f9f0d42ff80d203ed87b974c028290140913b61e005fb0aab2"
+          tar="${{ runner.temp }}/hacs-image/image.tar"
+          if [[ -f "$tar" ]]; then
+            docker load -i "$tar"
+          else
+            docker pull "$image"
+            mkdir -p "${{ runner.temp }}/hacs-image"
+            docker save "$image" -o "$tar"
+          fi
+      - name: Save pinned HACS image
+        if: steps.hacs-image.outputs.cache-hit != 'true'
+        uses: actions/cache/save@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: ${{ runner.temp }}/hacs-image
+          key: hacs-action-187499a09c5d41f9f0d42ff80d203ed87b974c028290140913b61e005fb0aab2
+      - name: Validate HACS custom repository
+        env:
+          INPUT_GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          docker run --rm \
+            -v "$PWD:/github/workspace" \
+            -w /github/workspace \
+            -e INPUT_CATEGORY=integration \
+            -e INPUT_COMMENT=false \
+            -e INPUT_GITHUB_TOKEN \
+            -e GITHUB_TOKEN \
+            -e GITHUB_REPOSITORY \
+            -e GITHUB_REPOSITORY_OWNER \
+            -e GITHUB_SHA \
+            -e GITHUB_REF \
+            -e GITHUB_REF_NAME \
+            -e GITHUB_SERVER_URL \
+            -e GITHUB_API_URL \
+            -e GITHUB_EVENT_NAME \
+            -e GITHUB_WORKSPACE=/github/workspace \
+            -e GITHUB_ACTIONS=true \
+            -e CI=true \
+            ghcr.io/hacs/action@sha256:187499a09c5d41f9f0d42ff80d203ed87b974c028290140913b61e005fb0aab2
       - name: Enforce time budget
         if: always()
         env:
