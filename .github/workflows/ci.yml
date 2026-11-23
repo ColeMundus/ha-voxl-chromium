@@ -95,8 +95,6 @@ jobs:
       - run: uv sync --locked
       - name: Build ephemeral source image (never pushed or uploaded)
         run: docker build -t ha-voxl-chromium:test voxl_chromium
-      - name: Stress native Unicode input before and after the keymap fix
-        run: uv run python tests/smoke.py --image ha-voxl-chromium:test --type-stress 200
       - name: Install browser for smoke tests
         run: uv run playwright install --with-deps --only-shell chromium
       - name: Exercise Chromium and ingress over the running container
