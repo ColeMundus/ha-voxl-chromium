@@ -474,35 +474,31 @@ def open_loaded_page(page, url, health_url):
     Chromium on Linux dumps the route table when its network service starts
     and treats that dump as a network change. A navigation already in flight
     is aborted with net::ERR_NETWORK_CHANGED. That dump still overlaps the
-    first navigation on aarch64. A data URL does not use the network, and the
-    health endpoint is fetched until the startup notification has passed.
-    url itself is loaded once.
+    first navigation on aarch64. A data URL does not use the network. The
+    health endpoint is then requested through the browser's own network stack
+    until that startup notification has passed. A data document cannot fetch
+    an http URL, so this probe is not page JavaScript. url itself is loaded once.
     """
     page.goto("data:text/html,ready")
     deadline = time.monotonic() + 15
     last = "browser network service did not finish starting"
     while time.monotonic() < deadline:
-        status = page.evaluate(
-            """async (health) => {
-                try {
-                    const response = await fetch(health, {
-                        cache: "no-store",
-                        mode: "no-cors",
-                    });
-                    return response.type === "opaque" ? 200 : response.status;
-                } catch (error) {
-                    return String(error);
-                }
-            }""",
-            health_url,
-        )
-        if status == 200:
-            page.goto(url)
-            return
-        if "ERR_NETWORK_CHANGED" not in str(status):
-            raise AssertionError(f"browser could not reach {health_url}: {status}")
-        last = status
-        time.sleep(0.05)
+        try:
+            response = page.request.get(health_url, timeout=5_000)
+        except Exception as error:
+            if "ERR_NETWORK_CHANGED" not in str(error):
+                raise AssertionError(
+                    f"browser could not reach {health_url}: {error}"
+                ) from error
+            last = error
+            time.sleep(0.05)
+            continue
+        if response.status != 200:
+            raise AssertionError(
+                f"browser could not reach {health_url}: {response.status}"
+            )
+        page.goto(url)
+        return
     raise AssertionError(last)
 
 
