@@ -73,8 +73,10 @@ def test_browser_manager_reaps_and_never_relaunches_after_stop(tmp_path):
             [
                 sys.executable,
                 "-c",
-                "import pathlib,sys,time; "
-                "pathlib.Path(sys.argv[1]).write_text('persistent'); time.sleep(60)",
+                (
+                    "import pathlib,sys,time; "
+                    "pathlib.Path(sys.argv[1]).write_text('persistent'); time.sleep(60)"
+                ),
                 str(saved),
             ]
         )
