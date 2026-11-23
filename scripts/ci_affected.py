@@ -49,6 +49,7 @@ KNOWN_TOP = frozenset(
         "hacs.json",
         "integration_tests",
         "pyproject.toml",
+        "pyrightconfig.json",
         "repository.yaml",
         "scripts",
         "tests",

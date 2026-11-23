@@ -35,6 +35,11 @@ def test_non_pull_requests_run_every_job(event):
     assert outcome("integration", ["README.md"], event)[0] == "affected"
 
 
+def test_pyright_config_skips_native_and_integration():
+    assert outcome("native", ["pyrightconfig.json"])[0] == "skipped"
+    assert outcome("integration", ["pyrightconfig.json"])[0] == "skipped"
+
+
 def test_docs_only_skips_native_and_integration_but_not_unit_or_checks():
     files = ["README.md", "docs/screenshots/browser.jpg", "AUTOMATION.md"]
     assert outcome("native", files)[0] == "skipped"
