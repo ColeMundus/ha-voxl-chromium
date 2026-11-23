@@ -3,7 +3,6 @@
 import hmac
 import http.client
 import json
-import os
 import socket
 import socketserver
 import subprocess
@@ -11,6 +10,7 @@ import sys
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
 from urllib.parse import urlencode, urlsplit
 
 from runtime import commands, validate_options, validate_token
@@ -270,7 +270,7 @@ class LocalRestoreServer(socketserver.ThreadingUnixStreamServer):
         self.lifecycle = getattr(backend, "lifecycle", threading.RLock())
         self.workers = threading.BoundedSemaphore(4)
         super().__init__(path, LocalRestoreHandler)
-        os.chmod(path, 0o600)
+        Path(path).chmod(0o600)
 
     def process_request(self, request, client_address):
         if not self.workers.acquire(blocking=False):

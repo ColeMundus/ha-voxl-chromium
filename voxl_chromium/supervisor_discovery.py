@@ -121,7 +121,7 @@ def write_state(path, value):
             json.dump(value, stream)
             stream.flush()
             os.fsync(stream.fileno())
-        os.replace(name, path)
+        Path(name).replace(path)
     finally:
         Path(name).unlink(missing_ok=True)
 

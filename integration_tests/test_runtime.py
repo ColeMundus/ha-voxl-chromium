@@ -1,7 +1,6 @@
 """Real HA flow/runtime tests; only transport is mocked."""
 
 import logging
-import os
 from unittest.mock import AsyncMock, patch
 
 import aiohttp
@@ -120,7 +119,7 @@ async def test_media_actions_image_and_permissions(hass, tmp_path, caplog):
             DOMAIN, "screenshot", {**params, "filename": str(target)}, blocking=True
         )
         assert target.read_bytes() == PNG
-        assert os.stat(target).st_mode & 0o777 == 0o600
+        assert target.stat().st_mode & 0o777 == 0o600
         with pytest.raises(HomeAssistantError):
             await hass.services.async_call(
                 DOMAIN, "screenshot", {**params, "filename": str(target)}, blocking=True
