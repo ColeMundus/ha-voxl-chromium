@@ -74,7 +74,7 @@ def literal_text(value):
         )
     ):
         raise vol.Invalid(
-            "Expected 1–1024 Unicode characters without controls or surrogates"
+            "Expected 1-1024 Unicode characters without controls or surrogates"
         )
     return value
 

@@ -283,7 +283,7 @@ def test_unexpected_lock_member_produces_no_derived_outputs(bundle, kind):
         source.addfile(member, io.BytesIO(data) if member.isfile() else None)
     repin(root, archive, pin)
     error = KeyError if kind in {"wrong-commit", "traversal"} else SystemExit
-    with pytest.raises(error, match="Cargo.lock"):
+    with pytest.raises(error, match=r"Cargo\.lock"):
         packager().package_sources(VERSION, PROJECT_COMMIT, root=root, output=output)
     assert {path.name for path in output.iterdir()} == {
         f"ha-voxl-chromium-{VERSION}-source.tar.gz",

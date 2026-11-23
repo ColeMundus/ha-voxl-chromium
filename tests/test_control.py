@@ -322,7 +322,8 @@ def test_subprocess_arguments_and_verified_restore(monkeypatch):
     backend = control.BrowserBackend()
     url = "https://example.com/?q=$(bad);echo"
     backend.open_url(url, new_tab=True)
-    assert calls[0][0] == commands(validate_options({}))["chromium"][:-1] + [
+    assert calls[0][0] == [
+        *commands(validate_options({}))["chromium"][:-1],
         "--new-tab",
         url,
     ]
