@@ -21,7 +21,7 @@ testpaths = ["tests"]
 target-version = "py311"
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "UP", "B", "BLE", "SIM", "FBT", "PLW", "RUF"]
+select = ["E", "F", "I", "UP", "B", "BLE", "SIM", "FBT", "PLW", "RUF", "ICN"]
 
 [tool.ty.environment]
 extra-paths = ["voxl_chromium", ".", "tests", "integration_tests"]
