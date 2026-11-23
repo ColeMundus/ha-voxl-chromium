@@ -130,9 +130,8 @@ def publish(client, token, state=STATE):
     info = client.request("GET", "/addons/self/info")
     host = internal_hostname(info)
     previous = read_state(state)
-    if previous is not None:
-        if previous.get("slug") != info["slug"]:
-            raise ValueError("Discovery state belongs to another add-on")
+    if previous is not None and previous.get("slug") != info["slug"]:
+        raise ValueError("Discovery state belongs to another add-on")
     if not token:
         if previous is not None:
             client.request("DELETE", "/discovery/" + previous["uuid"])

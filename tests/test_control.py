@@ -519,33 +519,35 @@ def test_slow_body_has_total_deadline(monkeypatch):
     import control
 
     monkeypatch.setattr(control, "BODY_TIMEOUT", 0.15)
-    with serving(Backend()) as server:
-        with socket.create_connection(server.server_address, timeout=2) as conn:
-            conn.sendall(
-                (
-                    "POST /record HTTP/1.0\r\nAuthorization: Bearer "
-                    + TOKEN
-                    + "\r\nContent-Type: application/json\r\n"
-                    "Content-Length: 100\r\n\r\n"
-                ).encode()
-            )
+    with (
+        serving(Backend()) as server,
+        socket.create_connection(server.server_address, timeout=2) as conn,
+    ):
+        conn.sendall(
+            (
+                "POST /record HTTP/1.0\r\nAuthorization: Bearer "
+                + TOKEN
+                + "\r\nContent-Type: application/json\r\n"
+                "Content-Length: 100\r\n\r\n"
+            ).encode()
+        )
 
-            def trickle():
-                for _ in range(10):
-                    try:
-                        conn.sendall(b" ")
-                    except OSError:
-                        break
-                    time.sleep(0.05)
+        def trickle():
+            for _ in range(10):
+                try:
+                    conn.sendall(b" ")
+                except OSError:
+                    break
+                time.sleep(0.05)
 
-            thread = threading.Thread(target=trickle)
-            thread.start()
-            started = time.monotonic()
-            response = http.client.HTTPResponse(conn)
-            response.begin()
-            assert response.status == 400
-            assert time.monotonic() - started < 0.4
-            thread.join()
+        thread = threading.Thread(target=trickle)
+        thread.start()
+        started = time.monotonic()
+        response = http.client.HTTPResponse(conn)
+        response.begin()
+        assert response.status == 400
+        assert time.monotonic() - started < 0.4
+        thread.join()
 
 
 def test_other_methods_keep_auth_boundary():

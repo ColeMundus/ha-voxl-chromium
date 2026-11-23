@@ -98,18 +98,20 @@ async def test_setup_failure(hass, error, state, caplog):
 async def test_media_failure_keeps_last_image(hass):
     entry = await loaded(hass)
     hass.data[DOMAIN][entry.entry_id].image = b"previous"
-    with patch.object(
-        Client, "request", side_effect=CannotConnect("Native API unavailable")
+    with (
+        patch.object(
+            Client, "request", side_effect=CannotConnect("Native API unavailable")
+        ),
+        pytest.raises(HomeAssistantError),
     ):
-        with pytest.raises(HomeAssistantError):
-            await hass.services.async_call(
-                DOMAIN,
-                "screenshot",
-                {
-                    "config_entry_id": entry.entry_id,
-                },
-                blocking=True,
-            )
+        await hass.services.async_call(
+            DOMAIN,
+            "screenshot",
+            {
+                "config_entry_id": entry.entry_id,
+            },
+            blocking=True,
+        )
     assert hass.data[DOMAIN][entry.entry_id].image == b"previous"
 
 

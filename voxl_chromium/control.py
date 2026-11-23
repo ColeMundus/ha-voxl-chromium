@@ -1,5 +1,6 @@
 """Private authenticated automation boundary; deliberately no access logging."""
 
+import contextlib
 import ctypes
 import hmac
 import http.client
@@ -802,10 +803,8 @@ class Handler(BaseHTTPRequestHandler):
         # Socket timeouts alone reset on each received byte. Close the socket
         # after a total request-line/header budget even if bytes keep arriving.
         def expire():
-            try:
+            with contextlib.suppress(OSError):
                 self.connection.shutdown(socket.SHUT_RDWR)
-            except OSError:
-                pass
 
         self.header_timer = threading.Timer(HEADER_TIMEOUT, expire)
         self.header_timer.daemon = True

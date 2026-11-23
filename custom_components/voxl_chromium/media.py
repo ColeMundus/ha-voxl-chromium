@@ -1,5 +1,6 @@
 """Constrained, no-overwrite media exports using directory descriptors."""
 
+import contextlib
 import os
 import secrets
 from pathlib import Path
@@ -58,8 +59,6 @@ def write_media(hass, filename, content, extension):
     finally:
         if fd is not None:
             if temp:
-                try:
+                with contextlib.suppress(OSError):
                     os.unlink(temp, dir_fd=fd)
-                except OSError:
-                    pass
             os.close(fd)
