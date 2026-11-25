@@ -8,7 +8,7 @@ dependencies = []
 dev = [
     "pytest>=8,<10",
     "pyyaml>=6,<7",
-    "ruff>=0.17.5,<1",
+    "ruff>=0.17.6,<1",
     "playwright>=1.65.2,<2",
     "pytest-randomly>=5.1.0",
 ]
